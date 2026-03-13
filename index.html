@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="YogaKids - Tạo ảnh minh họa yoga từ kịch bản. Biến script thành prompt ảnh chuẩn với AI.">
+    <title>YogaKids — Yoga Script Image Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/src/styles/index.css">
+</head>
+
+<body>
+    <div id="app">
+        <!-- Ambient background glow -->
+        <div class="ambient-glow"></div>
+        <div class="ambient-glow-2"></div>
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand">
+                <span class="brand-icon">🧘</span>
+                <h1 class="brand-name">YogaKids</h1>
+            </div>
+
+            <nav class="sidebar-nav" id="step-nav">
+                <button class="nav-step active" data-step="0">
+                    <span class="step-num">1</span>
+                    <span class="step-icon">⚙️</span>
+                    <span class="step-label">Settings</span>
+                </button>
+                <button class="nav-step" data-step="1">
+                    <span class="step-num">2</span>
+                    <span class="step-icon">📝</span>
+                    <span class="step-label">Script</span>
+                </button>
+                <button class="nav-step" data-step="2">
+                    <span class="step-num">3</span>
+                    <span class="step-icon">👤</span>
+                    <span class="step-label">Character</span>
+                </button>
+                <button class="nav-step" data-step="3">
+                    <span class="step-num">4</span>
+                    <span class="step-icon">🎨</span>
+                    <span class="step-label">Prompts</span>
+                </button>
+                <button class="nav-step" data-step="4">
+                    <span class="step-num">5</span>
+                    <span class="step-icon">🖼️</span>
+                    <span class="step-label">Gallery</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-stats" id="sidebar-stats">
+                    <div class="stat-item">
+                        <span class="stat-value" id="stat-scenes">0</span>
+                        <span class="stat-label">Scenes</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="stat-prompts">0</span>
+                        <span class="stat-label">Prompts</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="stat-images">0</span>
+                        <span class="stat-label">Images</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <main class="main-content">
+            <!-- Top bar -->
+            <header class="top-bar">
+                <div class="step-progress">
+                    <div class="progress-track">
+                        <div class="progress-fill" id="progress-fill" style="width: 20%"></div>
+                    </div>
+                    <span class="progress-label" id="progress-label">Step 1 of 5</span>
+                </div>
+                <div class="top-actions">
+                    <button class="btn btn-outline" id="btn-new-project" title="Start new project (keeps settings)">
+                        ✨ New Project
+                    </button>
+                    <input type="file" id="upload-zip-input" accept=".zip" style="display: none;">
+                    <button class="btn btn-ghost" id="btn-load-zip" title="Load project from ZIP">
+                        📂 Load ZIP
+                    </button>
+                    <button class="btn btn-ghost" id="btn-reset" title="Reset all settings and data">
+                        ↺ Reset All
+                    </button>
+                </div>
+            </header>
+
+            <!-- Step panels -->
+            <div class="step-panels" id="step-panels">
+
+                <!-- STEP 0: Settings -->
+                <section class="step-panel active" data-panel="0" id="panel-settings">
+                    <div class="panel-header">
+                        <h2 class="panel-title">⚙️ Settings</h2>
+                        <p class="panel-desc">Cấu hình API key và style cho ảnh</p>
+                    </div>
+                    <div class="panel-body">
+                        <div class="settings-grid">
+                            <div class="glass-card">
+                                <h3 class="card-title">🔌 API Provider</h3>
+                                <p class="card-desc">Chọn provider và nhập API key</p>
+                                <div class="settings-row">
+                                    <label class="label">Provider</label>
+                                    <div class="provider-tabs" id="provider-tabs">
+                                        <button class="provider-tab active" data-provider="google-ai">
+                                            <span class="provider-tab-icon">🔷</span> Google AI Direct
+                                        </button>
+                                        <button class="provider-tab" data-provider="vertex-key">
+                                            <span class="provider-tab-icon">🔶</span> Vertex Key
+                                        </button>
+                                        <button class="provider-tab" data-provider="gommo">
+                                            <span class="provider-tab-icon">🍌</span> Gommo AI
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="settings-row">
+                                    <label class="label">API Key</label>
+                                    <div class="input-group">
+                                        <input type="password" id="api-key" class="input" placeholder="AIzaSy..."
+                                            autocomplete="off">
+                                        <button class="btn btn-sm btn-outline" id="toggle-key"
+                                            title="Hiện/ẩn key">👁️</button>
+                                        <button class="btn btn-sm btn-accent" id="btn-verify-key">✅ Kiểm tra</button>
+                                    </div>
+                                    <p class="input-hint" id="key-hint">Key được lưu trên trình duyệt (localStorage).
+                                    </p>
+                                    <p class="input-hint" id="key-status"
+                                        style="font-weight: bold; margin-top: 5px; display: none;"></p>
+                                </div>
+                                <div class="settings-row">
+                                    <label class="label">Image Model</label>
+                                    <select id="image-model" class="select">
+                                        <!-- Filled by JS based on provider -->
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="glass-card">
+                                <h3 class="card-title">🎨 Style Preset</h3>
+                                <p class="card-desc">Chọn phong cách ảnh</p>
+                                <div class="style-grid" id="style-grid">
+                                    <!-- Filled by JS -->
+                                </div>
+                            </div>
+
+                            <div class="glass-card">
+                                <h3 class="card-title">📐 Image Settings</h3>
+                                <p class="card-desc">Tỉ lệ và độ phân giải</p>
+                                <div class="settings-row">
+                                    <label class="label">Aspect Ratio</label>
+                                    <select id="aspect-ratio" class="select">
+                                        <option value="16:9" selected>16:9 (Video)</option>
+                                        <option value="9:16">9:16 (Portrait)</option>
+                                        <option value="1:1">1:1 (Square)</option>
+                                        <option value="4:3">4:3 (Standard)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="panel-footer">
+                        <div></div>
+                        <button class="btn btn-primary" data-next="1">
+                            Tiếp tục → Script
+                        </button>
+                    </div>
+                </section>
+
+                <!-- STEP 1: Script Input -->
+                <section class="step-panel" data-panel="1" id="panel-script">
+                    <div class="panel-header">
+                        <h2 class="panel-title">📝 Script Input</h2>
+                        <p class="panel-desc">Paste kịch bản yoga vào đây, hệ thống tự động chia scenes</p>
+                    </div>
+                    <div class="panel-body panel-split">
+                        <div class="split-left">
+                            <div class="glass-card full-height">
+                                <div class="card-header-bar">
+                                    <h3 class="card-title">Kịch bản</h3>
+                                    <button class="btn btn-sm btn-ghost" id="btn-sample-script">📋 Dùng mẫu</button>
+                                </div>
+                                <textarea id="script-input" class="textarea"
+                                    placeholder="Paste kịch bản yoga ở đây...&#10;&#10;Intro&#10;Welcome to this gentle bedtime yoga session...&#10;&#10;1. Easy Pose&#10;Sit comfortably with a tall but relaxed spine..."></textarea>
+                                <button class="btn btn-accent full-width" id="btn-parse">🔍 Phân tích Script</button>
+                            </div>
+                        </div>
+                        <div class="split-right">
+                            <div class="glass-card full-height">
+                                <div class="card-header-bar">
+                                    <h3 class="card-title">Scenes đã phân tích</h3>
+                                    <span class="badge" id="scene-count-badge">0 scenes</span>
+                                </div>
+                                <div class="scene-list" id="scene-list">
+                                    <div class="empty-state">
+                                        <span class="empty-icon">📋</span>
+                                        <p>Paste script và nhấn "Phân tích" để xem scenes</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="panel-footer">
+                        <button class="btn btn-outline" data-prev="0">← Settings</button>
+                        <button class="btn btn-primary" data-next="2" id="btn-to-character" disabled>
+                            Tiếp tục → Character
+                        </button>
+                    </div>
+                </section>
+
+                <!-- STEP 2: Character Setup -->
+                <section class="step-panel" data-panel="2" id="panel-character">
+                    <div class="panel-header">
+                        <h2 class="panel-title">👤 Character Setup</h2>
+                        <p class="panel-desc">Mô tả nhân vật hoặc upload ảnh reference</p>
+                    </div>
+                    <div class="panel-body">
+                        <div class="character-grid">
+                            <div class="glass-card">
+                                <h3 class="card-title">✍️ Mô tả nhân vật</h3>
+                                <textarea id="character-desc" class="textarea textarea-sm"
+                                    placeholder="a cute 3D cartoon girl with long purple braided hair in a high bun, wearing a white sleeveless crop top with gold accents and white yoga leggings with gold trim, barefoot"></textarea>
+                            </div>
+
+                            <div class="glass-card">
+                                <h3 class="card-title">🖼️ Ảnh Reference (tuỳ chọn)</h3>
+                                <p class="card-desc">Upload 1-3 ảnh nhân vật để giữ nhất quán</p>
+                                <div class="upload-zone" id="upload-zone">
+                                    <input type="file" id="ref-upload" accept="image/*" multiple hidden>
+                                    <span class="upload-icon">📁</span>
+                                    <p>Kéo thả hoặc click để upload</p>
+                                    <p class="upload-hint">PNG/JPG, tối đa 3 ảnh</p>
+                                </div>
+                                <div class="ref-preview-grid" id="ref-previews"></div>
+                            </div>
+
+                            <div class="glass-card">
+                                <h3 class="card-title">🌍 Environment</h3>
+                                <textarea id="environment-desc" class="textarea textarea-xs"
+                                    placeholder="on a purple yoga mat, clean white background, minimal scene"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="panel-footer">
+                        <button class="btn btn-outline" data-prev="1">← Script</button>
+                        <button class="btn btn-primary" data-next="3" id="btn-generate-prompts">
+                            Tạo Prompts → 🎨
+                        </button>
+                    </div>
+                </section>
+
+                <!-- STEP 3: Prompts Review -->
+                <section class="step-panel" data-panel="3" id="panel-prompts">
+                    <div class="panel-header">
+                        <div class="panel-header-bar"
+                            style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+                            <div>
+                                <h2 class="panel-title">🎨 Prompt Review</h2>
+                                <p class="panel-desc">Xem và chỉnh sửa prompts cho từng pose (Start + End frame)</p>
+                            </div>
+                            <button class="btn btn-outline btn-sm" id="btn-copy-all-veo">📋 Copy All Veo
+                                Prompts</button>
+                        </div>
+                    </div>
+                    <div class="panel-body">
+                        <div class="prompt-list" id="prompt-list">
+                            <div class="empty-state">
+                                <span class="empty-icon">🎨</span>
+                                <p>Chưa có prompts. Quay lại bước Script để phân tích.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="panel-footer">
+                        <button class="btn btn-outline" data-prev="2">← Character</button>
+                        <button class="btn btn-primary" data-next="4" id="btn-to-gallery">
+                            Generate Images → 🖼️
+                        </button>
+                    </div>
+                </section>
+
+                <!-- STEP 4: Gallery -->
+                <section class="step-panel" data-panel="4" id="panel-gallery">
+                    <div class="panel-header">
+                        <h2 class="panel-title">🖼️ Gallery</h2>
+                        <p class="panel-desc">Generate và xem ảnh cho từng pose</p>
+                    </div>
+                    <div class="panel-body">
+                        <div class="gallery-toolbar">
+                            <button class="btn btn-accent" id="btn-generate-all">🚀 Generate All</button>
+                            <button class="btn btn-outline" id="btn-download-all" disabled>📦 Download ZIP</button>
+                            <div class="generate-progress" id="generate-progress" style="display:none">
+                                <div class="progress-bar-mini">
+                                    <div class="progress-fill-mini" id="gen-progress-fill"></div>
+                                </div>
+                                <span id="gen-progress-text">0/0</span>
+                            </div>
+                        </div>
+                        <div class="gallery-grid" id="gallery-grid">
+                            <div class="empty-state">
+                                <span class="empty-icon">🖼️</span>
+                                <p>Chưa có ảnh. Nhấn "Generate All" để bắt đầu.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="panel-footer">
+                        <button class="btn btn-outline" data-prev="3">← Prompts</button>
+                        <div></div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast container -->
+    <div class="toast-container" id="toasts"></div>
+
+    <!-- Image Modal -->
+    <div id="image-modal" class="image-modal">
+        <span class="image-modal-close" id="image-modal-close">&times;</span>
+        <img class="image-modal-content" id="image-modal-img">
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>

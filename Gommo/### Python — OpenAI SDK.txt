@@ -1,0 +1,49 @@
+### Python — OpenAI SDK
+```
+from openai import OpenAI client = OpenAI( api_key="vai-your-api-key-here", base_url="https://vertex-key.com/api/v1" ) # Generate image response = client.images.generate( model="gemini-image-1k", # or enterprise/gemini-3.1-image-4k prompt="A cute cat wearing a tiny hat, photorealistic", n=1, size="1024x1024" ) # Get image URL or base64 image_url = response.data[0].url print(f"Image URL: {image_url}") # If response contains base64 if response.data[0].b64_json: import base64 img_bytes = base64.b64decode(response.data[0].b64_json) with open("output.png", "wb") as f: f.write(img_bytes)
+```
+
+
+```
+from openai import OpenAI client = OpenAI( api_key="vai-your-api-key-here", base_url="https://vertex-key.com/api/v1" ) # Generate image response = client.images.generate( model="gemini-image-1k", # or enterprise/gemini-3.1-image-4k prompt="A cute cat wearing a tiny hat, photorealistic", n=1, size="1024x1024" ) # Get image URL or base64 image_url = response.data[0].url print(f"Image URL: {image_url}") # If response contains base64 if response.data[0].b64_json: import base64 img_bytes = base64.b64decode(response.data[0].b64_json) with open("output.png", "wb") as f: f.write(img_bytes)
+```
+
+### cURL
+```
+curl https://vertex-key.com/api/v1/images/generations \ -H "Authorization: Bearer vai-your-api-key-here" \ -H "Content-Type: application/json" \ -d '{ "model": "enterprise/gemini-3.1-image-4k", "prompt": "Mountain landscape at sunset, photorealistic", "n": 1, "size": "1024x1024" }'
+```
+
+
+```
+curl https://vertex-key.com/api/v1/images/generations \ -H "Authorization: Bearer vai-your-api-key-here" \ -H "Content-Type: application/json" \ -d '{ "model": "enterprise/gemini-3.1-image-4k", "prompt": "Mountain landscape at sunset, photorealistic", "n": 1, "size": "1024x1024" }'
+```
+
+### Node.js
+```
+import OpenAI from "openai"; const client = new OpenAI({ apiKey: "vai-your-api-key-here", baseURL: "https://vertex-key.com/api/v1", }); const response = await client.images.generate({ model: "enterprise/gemini-3.1-image-1k", prompt: "A futuristic cityscape at night", n: 1, size: "1024x1024", }); console.log("Image URL:", response.data[0].url);
+```
+
+
+```
+import OpenAI from "openai"; const client = new OpenAI({ apiKey: "vai-your-api-key-here", baseURL: "https://vertex-key.com/api/v1", }); const response = await client.images.generate({ model: "enterprise/gemini-3.1-image-1k", prompt: "A futuristic cityscape at night", n: 1, size: "1024x1024", }); console.log("Image URL:", response.data[0].url);
+```
+
+
+```
+gemini-image-*
+```
+
+
+```
+enterprise/
+```
+
+
+```
+url
+```
+
+
+```
+b64_json
+```
