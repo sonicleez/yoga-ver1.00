@@ -13,6 +13,7 @@
  */
 
 import { generateSceneImages } from './imageGenerator.js';
+import { log } from './logger.js';
 
 // ============================================================
 // QUEUE STATE
@@ -67,7 +68,7 @@ export function enqueue(sceneIndex, sceneName, framePrompt, options = {}) {
             (item.status === 'pending' || item.status === 'generating')
     );
     if (existing) {
-        console.log(`📦 [Queue] Scene #${sceneIndex} "${sceneName}" already in queue (status: ${existing.status}), skipping`);
+        log.debug(`📦 [Queue] Scene #${sceneIndex} "${sceneName}" already in queue (status: ${existing.status}), skipping`);
         return existing.id;
     }
 
@@ -85,7 +86,7 @@ export function enqueue(sceneIndex, sceneName, framePrompt, options = {}) {
     };
 
     queue.push(item);
-    console.log(`➕ [Queue] Enqueued: #${sceneIndex} "${sceneName}" (${id}). Queue pending: ${getPendingCount()}, total: ${queue.length}`);
+    log.debug(`➕ [Queue] Enqueued: #${sceneIndex} "${sceneName}" (${id}). Queue pending: ${getPendingCount()}, total: ${queue.length}`);
 
     // Tự động bắt đầu xử lý nếu chưa đang chạy
     if (!isProcessing) {
@@ -108,7 +109,7 @@ export function enqueueAll(framePrompts, options = {}) {
         ids.push(id);
     }
 
-    console.log(`➕ [Queue] Enqueued ${ids.length} scenes for bulk generation. Queue total: ${queue.length}`);
+    log.debug(`➕ [Queue] Enqueued ${ids.length} scenes for bulk generation. Queue total: ${queue.length}`);
     return ids;
 }
 
@@ -116,7 +117,7 @@ export function enqueueAll(framePrompts, options = {}) {
  * Cancel toàn bộ queue
  */
 export function cancelAll() {
-    console.warn('🚫 [Queue] Cancelling all pending items...');
+    log.warn('🚫 [Queue] Cancelling all pending items...');
     isCancelled = true;
 
     // Abort current request if possible
@@ -131,7 +132,7 @@ export function cancelAll() {
         }
     }
     const cancelledCount = queue.filter(i => i.status === 'cancelled').length;
-    console.warn(`🚫 [Queue] Cancelled ${cancelledCount} items`);
+    log.warn(`🚫 [Queue] Cancelled ${cancelledCount} items`);
 }
 
 /**
@@ -143,7 +144,7 @@ export function cancelItem(sceneIndex) {
     );
     if (item) {
         item.status = 'cancelled';
-        console.log(`[Queue] Cancelled: ${item.sceneName}`);
+        log.debug(`[Queue] Cancelled: ${item.sceneName}`);
         return true;
     }
     return false;
@@ -235,7 +236,7 @@ export function setConfig(newConfig = {}) {
 
 async function processQueue() {
     if (isProcessing) {
-        console.log('[Queue] Already processing, skip');
+        log.debug('[Queue] Already processing, skip');
         return;
     }
 
@@ -245,8 +246,8 @@ async function processQueue() {
     const totalAtStart = getPendingCount() + getGeneratingCount();
     let completed = 0;
 
-    console.group(`📦 [Queue] Starting processing. ${totalAtStart} items in queue.`);
-    console.time('⏱️ Queue total processing');
+    log.group(`📦 [Queue] Starting processing. ${totalAtStart} items in queue.`);
+    log.time('⏱️ Queue total processing');
 
     if (onQueueStartCallback) {
         onQueueStartCallback(totalAtStart);
@@ -259,8 +260,8 @@ async function processQueue() {
 
         // Mark as generating
         nextItem.status = 'generating';
-        console.group(`🎨 [Queue] Processing item ${completed + 1}/${totalAtStart}: "${nextItem.sceneName}" (scene #${nextItem.sceneIndex})`);
-        console.time(`⏱️ Queue item "${nextItem.sceneName}"`);
+        log.group(`🎨 [Queue] Processing item ${completed + 1}/${totalAtStart}: "${nextItem.sceneName}" (scene #${nextItem.sceneIndex})`);
+        log.time(`⏱️ Queue item "${nextItem.sceneName}"`);
 
         // Notify progress
         if (onProgressCallback) {
@@ -283,9 +284,9 @@ async function processQueue() {
             nextItem.result = result;
             completed++;
 
-            console.log(`✅ [Queue] Done: "${nextItem.sceneName}" — start: ${result.start?.base64 ? Math.round(result.start.base64.length / 1024) + 'KB' : 'N/A'}, end: ${result.end?.base64 ? Math.round(result.end.base64.length / 1024) + 'KB' : 'N/A'}`);
-            console.timeEnd(`⏱️ Queue item "${nextItem.sceneName}"`);
-            console.groupEnd();
+            log.debug(`✅ [Queue] Done: "${nextItem.sceneName}" — start: ${result.start?.base64 ? Math.round(result.start.base64.length / 1024) + 'KB' : 'N/A'}, end: ${result.end?.base64 ? Math.round(result.end.base64.length / 1024) + 'KB' : 'N/A'}`);
+            log.timeEnd(`⏱️ Queue item "${nextItem.sceneName}"`);
+            log.groupEnd();
 
             if (onItemCompleteCallback) {
                 onItemCompleteCallback(nextItem, result);
@@ -297,16 +298,16 @@ async function processQueue() {
                 break;
             }
 
-            console.error(`❌ [Queue] Error for "${nextItem.sceneName}":`, err.message);
-            console.error(`❌ [Queue] Full error:`, err);
+            log.error(`❌ [Queue] Error for "${nextItem.sceneName}":`, err.message);
+            log.error(`❌ [Queue] Full error:`, err);
 
             // Retry logic
             if (nextItem.retryCount < CONFIG.maxRetries) {
                 nextItem.retryCount++;
                 nextItem.status = 'pending';
-                console.warn(`🔄 [Queue] Retrying "${nextItem.sceneName}" (attempt ${nextItem.retryCount}/${CONFIG.maxRetries}) after ${CONFIG.retryDelay}ms delay...`);
-                console.timeEnd(`⏱️ Queue item "${nextItem.sceneName}"`);
-                console.groupEnd();
+                log.warn(`🔄 [Queue] Retrying "${nextItem.sceneName}" (attempt ${nextItem.retryCount}/${CONFIG.maxRetries}) after ${CONFIG.retryDelay}ms delay...`);
+                log.timeEnd(`⏱️ Queue item "${nextItem.sceneName}"`);
+                log.groupEnd();
                 await sleep(CONFIG.retryDelay);
                 continue;
             }
@@ -314,8 +315,8 @@ async function processQueue() {
             nextItem.status = 'error';
             nextItem.error = err.message;
             completed++;
-            console.timeEnd(`⏱️ Queue item "${nextItem.sceneName}"`);
-            console.groupEnd();
+            log.timeEnd(`⏱️ Queue item "${nextItem.sceneName}"`);
+            log.groupEnd();
 
             if (onItemErrorCallback) {
                 onItemErrorCallback(nextItem, err);
@@ -325,7 +326,7 @@ async function processQueue() {
         // Rate-limit delay between scenes
         const hasMore = queue.some(i => i.status === 'pending');
         if (hasMore && !isCancelled) {
-            console.log(`⏳ [Queue] Rate-limit delay: ${CONFIG.delayBetweenScenes}ms before next scene...`);
+            log.debug(`⏳ [Queue] Rate-limit delay: ${CONFIG.delayBetweenScenes}ms before next scene...`);
             await sleep(CONFIG.delayBetweenScenes);
         }
     }
@@ -334,10 +335,10 @@ async function processQueue() {
 
     // Final stats
     const stats = getQueueStatus();
-    console.log(`\n🏁 [Queue] Processing complete:`);
-    console.log(`   ✅ Done: ${stats.done} | ❌ Error: ${stats.error} | 🚫 Cancelled: ${stats.cancelled} | ⏳ Pending: ${stats.pending}`);
-    console.timeEnd('⏱️ Queue total processing');
-    console.groupEnd();
+    log.debug(`\n🏁 [Queue] Processing complete:`);
+    log.debug(`   ✅ Done: ${stats.done} | ❌ Error: ${stats.error} | 🚫 Cancelled: ${stats.cancelled} | ⏳ Pending: ${stats.pending}`);
+    log.timeEnd('⏱️ Queue total processing');
+    log.groupEnd();
 
     if (onQueueCompleteCallback) {
         onQueueCompleteCallback(stats);

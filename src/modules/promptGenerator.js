@@ -34,6 +34,7 @@
  */
 
 import { analyzeScene } from './scriptParser.js';
+import { log } from './logger.js';
 
 // ============================================================
 // STYLE PRESETS
@@ -451,14 +452,14 @@ export const DEFAULT_SETTINGS = {
  * @returns {Object} { sceneName, startFrame, endFrame, transition, metadata }
  */
 export function generateFramePrompts(scene, settings = {}) {
-    console.group(`🎨 [PromptGen] Scene #${scene.index}: "${scene.name}" (${scene.type})`);
+    log.group(`🎨 [PromptGen] Scene #${scene.index}: "${scene.name}" (${scene.type})`);
 
     const config = { ...DEFAULT_SETTINGS, ...settings };
     const stylePreset = STYLE_PRESETS[config.stylePreset] || STYLE_PRESETS['3d-cartoon'];
-    console.log(`🎭 [PromptGen] Style: ${config.stylePreset} | View: ${config.aspectRatio} | Size: ${config.imageSize}`);
+    log.debug(`🎭 [PromptGen] Style: ${config.stylePreset} | View: ${config.aspectRatio} | Size: ${config.imageSize}`);
 
     const analysis = analyzeScene(scene);
-    console.log(`🔍 [PromptGen] Analysis:`, { standing: analysis.isStanding, sitting: analysis.isSitting, lying: analysis.isLying, suggestedView: analysis.suggestedView, bodyParts: analysis.bodyParts });
+    log.debug(`🔍 [PromptGen] Analysis:`, { standing: analysis.isStanding, sitting: analysis.isSitting, lying: analysis.isLying, suggestedView: analysis.suggestedView, bodyParts: analysis.bodyParts });
 
     // Get frame data from DB
     const frames = getFrameData(scene, config);
@@ -473,7 +474,7 @@ export function generateFramePrompts(scene, settings = {}) {
         analysis,
         view: frames.view,
     });
-    console.log(`🟢 [PromptGen] START prompt (${startFrame.prompt.length} chars): "${startFrame.prompt.substring(0, 80)}..."`);
+    log.debug(`🟢 [PromptGen] START prompt (${startFrame.prompt.length} chars): "${startFrame.prompt.substring(0, 80)}..."`);
 
     // Build END frame prompt
     const endFrame = buildFramePrompt({
@@ -490,9 +491,9 @@ export function generateFramePrompts(scene, settings = {}) {
         frames: frames,
         scene
     });
-    console.log(`🎬 [PromptGen] VIDEO prompt (${videoPrompt.length} chars): "${videoPrompt.substring(0, 80)}..."`);
+    log.debug(`🎬 [PromptGen] VIDEO prompt (${videoPrompt.length} chars): "${videoPrompt.substring(0, 80)}..."`);
 
-    console.groupEnd();
+    log.groupEnd();
 
     return {
         sceneIndex: scene.index,
@@ -516,16 +517,16 @@ export function generateFramePrompts(scene, settings = {}) {
  * Generate frame prompts cho TẤT CẢ scenes.
  */
 export function generateAllFramePrompts(parsedScript, settings = {}) {
-    console.group(`🎨 [PromptGen] generateAllFramePrompts — ${parsedScript.scenes.length} scenes`);
-    console.time('⏱️ generateAllFramePrompts duration');
+    log.group(`🎨 [PromptGen] generateAllFramePrompts — ${parsedScript.scenes.length} scenes`);
+    log.time('⏱️ generateAllFramePrompts duration');
 
     const results = parsedScript.scenes.map(scene =>
         generateFramePrompts(scene, settings)
     );
 
-    console.log(`✅ [PromptGen] Generated ${results.length} scene prompts (${results.length * 2} total frames)`);
-    console.timeEnd('⏱️ generateAllFramePrompts duration');
-    console.groupEnd();
+    log.debug(`✅ [PromptGen] Generated ${results.length} scene prompts (${results.length * 2} total frames)`);
+    log.timeEnd('⏱️ generateAllFramePrompts duration');
+    log.groupEnd();
 
     return results;
 }
@@ -587,11 +588,11 @@ function buildFramePrompt({ frameType, frameData, scene, config, stylePreset, an
 function getFrameData(scene, config) {
     // Special scenes (intro/outro)
     if (scene.type === 'intro') {
-        console.log(`📌 [PromptGen] Using SPECIAL_FRAMES.intro`);
+        log.debug(`📌 [PromptGen] Using SPECIAL_FRAMES.intro`);
         return { ...SPECIAL_FRAMES.intro, transition: 'welcoming gesture' };
     }
     if (scene.type === 'outro') {
-        console.log(`📌 [PromptGen] Using SPECIAL_FRAMES.outro`);
+        log.debug(`📌 [PromptGen] Using SPECIAL_FRAMES.outro`);
         return { ...SPECIAL_FRAMES.outro, transition: 'closing gratitude' };
     }
 
@@ -600,10 +601,10 @@ function getFrameData(scene, config) {
     if (config.usePoseDatabase) {
         const poseData = findPoseInDB(poseName);
         if (poseData) {
-            console.log(`✅ [PromptGen] DB HIT for "${poseName}" → found in POSE_FRAMES_DB`);
+            log.debug(`✅ [PromptGen] DB HIT for "${poseName}" → found in POSE_FRAMES_DB`);
             return poseData;
         }
-        console.warn(`⚠️ [PromptGen] DB MISS for "${poseName}" → using fallback`);
+        log.warn(`⚠️ [PromptGen] DB MISS for "${poseName}" → using fallback`);
     }
 
     // Fallback: tự tạo từ script text

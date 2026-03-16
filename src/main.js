@@ -8,6 +8,18 @@ import { generateAllFramePrompts, generateFramePrompts, STYLE_PRESETS, DEFAULT_S
 import { generateImage, base64ToBlobUrl, generateSceneImages, PROVIDERS, verifyApiKey } from './modules/imageGenerator.js';
 import { enqueue, enqueueAll, cancelAll, clearAll, isQueueProcessing, setCallbacks, getQueueStatus } from './modules/imageQueue.js';
 import { getState, setState, onStateChange, restoreAllState, clearAllState, clearProjectState, getActiveApiKey, setApiKey } from './modules/state.js';
+import { log } from './modules/logger.js';
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+const TOAST_DURATION = 3500;
+const MAX_REFERENCE_IMAGES = 3;
+
+// Module-scoped timer state (replaces window globals)
+let _genTimers = {};
+let _genStartTimes = {};
+let _genElapsedTimes = {};
 
 // ============================================================
 // SAMPLE SCRIPT
@@ -131,7 +143,7 @@ const $$ = (sel) => document.querySelectorAll(sel);
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.group('🚀 [App] DOMContentLoaded — Initializing YogaKids');
+    log.group('🚀 [App] DOMContentLoaded — Initializing YogaKids');
 
     // Image modal close handlers
     $('#image-modal-close')?.addEventListener('click', () => {
@@ -157,8 +169,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 3. Rebuild UI from restored state
     rebuildFromState();
 
-    console.log('✅ [App] All modules initialized');
-    console.groupEnd();
+    log.info('✅ [App] All modules initialized');
+    log.groupEnd();
     showToast('🧘 YogaKids ready!', 'info');
 });
 
@@ -167,7 +179,7 @@ document.addEventListener('DOMContentLoaded', async () => {
  */
 function rebuildFromState() {
     const state = getState();
-    console.group('🔄 [Restore] Rebuilding UI from state');
+    log.group('🔄 [Restore] Rebuilding UI from state');
 
     // Restore API key input for current provider
     const currentKey = getActiveApiKey();
@@ -195,7 +207,7 @@ function rebuildFromState() {
 
     // Restore parsed script → rebuild scene list
     if (state.parsedScript && state.parsedScript.scenes?.length > 0) {
-        console.log(`  📝 Restoring ${state.parsedScript.scenes.length} scenes`);
+        log.info(`  📝 Restoring ${state.parsedScript.scenes.length} scenes`);
         renderSceneList(state.parsedScript);
         const stats = getScriptStats(state.parsedScript);
         $('#stat-scenes').textContent = stats.totalScenes;
@@ -206,14 +218,14 @@ function rebuildFromState() {
 
     // Restore frame prompts → rebuild prompt list
     if (state.framePrompts?.length > 0) {
-        console.log(`  🎨 Restoring ${state.framePrompts.length} frame prompts`);
+        log.info(`  🎨 Restoring ${state.framePrompts.length} frame prompts`);
         buildPromptList();
     }
 
     // Restore generated images → rebuild gallery
     const imageCount = Object.keys(state.generatedImages || {}).length;
     if (imageCount > 0 && state.framePrompts?.length > 0) {
-        console.log(`  🖼️ Restoring ${imageCount} generated image sets`);
+        log.info(`  🖼️ Restoring ${imageCount} generated image sets`);
         buildGallery();
         $('#stat-images').textContent = imageCount * 2;
         $('#btn-download-all').disabled = false;
@@ -221,13 +233,13 @@ function rebuildFromState() {
 
     // Restore reference image previews
     if (state.referenceImages?.length > 0) {
-        console.log(`  📎 Restoring ${state.referenceImages.length} reference images`);
+        log.info(`  📎 Restoring ${state.referenceImages.length} reference images`);
         renderRefPreviews();
     }
 
     // Restore step
     if (state.currentStep > 0) {
-        console.log(`  📍 Restoring step ${state.currentStep}`);
+        log.info(`  📍 Restoring step ${state.currentStep}`);
         goToStep(state.currentStep);
     }
 
@@ -238,7 +250,7 @@ function rebuildFromState() {
         });
     }
 
-    console.groupEnd();
+    log.groupEnd();
 }
 
 // ============================================================
@@ -300,14 +312,14 @@ function initNavigation() {
 
 function goToStep(step) {
     const stepNames = ['Settings', 'Script Input', 'Character Setup', 'Prompt Review', 'Gallery'];
-    console.log(`📍 [Nav] goToStep(${step}) → "${stepNames[step] || 'Unknown'}"`);
+    log.debug(`📍 [Nav] goToStep(${step}) → "${stepNames[step] || 'Unknown'}"`);
 
     const state = getState();
     setState('currentStep', step);
 
     // Update panels
     $$('.step-panel').forEach(p => p.classList.remove('active'));
-    $(`.step-panel[data-panel="${step}"]`).classList.add('active');
+    $(`.step-panel[data-panel="${step}"]`)?.classList.add('active');
 
     // Update nav
     $$('.nav-step').forEach((n, i) => {
@@ -490,22 +502,22 @@ function initScriptPanel() {
 
     // Parse button
     $('#btn-parse').addEventListener('click', () => {
-        console.group('📝 [App] Parse Script button clicked');
+        log.group('📝 [App] Parse Script button clicked');
         const raw = $('#script-input').value.trim();
         if (!raw) {
-            console.warn('⚠️ [App] No script input');
-            console.groupEnd();
+            log.warn('⚠️ [App] No script input');
+            log.groupEnd();
             showToast('⚠️ Hãy nhập script trước!', 'error');
             return;
         }
-        console.log(`📄 [App] Raw script: ${raw.length} chars`);
+        log.debug(`📄 [App] Raw script: ${raw.length} chars`);
 
         const parsed = parseScript(raw);
         setState('parsedScript', parsed);
         renderSceneList(parsed);
 
         const stats = getScriptStats(parsed);
-        console.log('📊 [App] Script stats:', stats);
+        log.debug('📊 [App] Script stats:', stats);
         showToast(`✅ Đã phân tích ${stats.totalScenes} scenes (${stats.poseCount} poses)`, 'success');
 
         // Update sidebar stats
@@ -515,7 +527,7 @@ function initScriptPanel() {
         // Enable next button
         $('#btn-to-character').disabled = false;
         $('#scene-count-badge').textContent = `${stats.totalScenes} scenes`;
-        console.groupEnd();
+        log.groupEnd();
     });
 }
 
@@ -595,7 +607,7 @@ function handleFiles(files) {
     const refs = [...state.referenceImages];
 
     for (const file of files) {
-        if (refs.length >= 3) {
+        if (refs.length >= MAX_REFERENCE_IMAGES) {
             showToast('⚠️ Tối đa 3 ảnh reference!', 'error');
             break;
         }
@@ -667,11 +679,11 @@ function initPromptPanel() {
 
 
 function generatePrompts() {
-    console.group('🎨 [App] generatePrompts()');
+    log.group('🎨 [App] generatePrompts()');
     const state = getState();
     if (!state.parsedScript) {
-        console.warn('⚠️ [App] No parsed script available');
-        console.groupEnd();
+        log.warn('⚠️ [App] No parsed script available');
+        log.groupEnd();
         showToast('⚠️ Chưa có script! Quay lại bước 2.', 'error');
         return;
     }
@@ -683,12 +695,12 @@ function generatePrompts() {
         aspectRatio: state.aspectRatio,
         imageSize: state.imageSize,
     };
-    console.log('⚙️ [App] Prompt settings:', settings);
+    log.debug('⚙️ [App] Prompt settings:', settings);
 
     const prompts = generateAllFramePrompts(state.parsedScript, settings);
     setState('framePrompts', prompts);
-    console.log(`✅ [App] Generated ${prompts.length} scene prompts (${prompts.length * 2} total frames)`);
-    console.groupEnd();
+    log.info(`✅ [App] Generated ${prompts.length} scene prompts (${prompts.length * 2} total frames)`);
+    log.groupEnd();
     showToast(`🎨 Đã tạo ${prompts.length * 2} prompts (${prompts.length} start + ${prompts.length} end)`, 'success');
 }
 
@@ -754,7 +766,7 @@ function initGalleryPanel() {
     // Setup queue callbacks
     setCallbacks({
         onQueueStart: (total) => {
-            console.log(`🚀 [App/Queue] Queue started — ${total} scenes to generate`);
+            log.info(`🚀 [App/Queue] Queue started — ${total} scenes to generate`);
             const progressEl = $('#generate-progress');
             const progressFill = $('#gen-progress-fill');
             const progressText = $('#gen-progress-text');
@@ -766,9 +778,9 @@ function initGalleryPanel() {
             // Show cancel button
             showCancelButton(true);
             setState('isGenerating', true);
-            window._genTimers = window._genTimers || {};
-            window._genStartTimes = window._genStartTimes || {};
-            window._genElapsedTimes = window._genElapsedTimes || {};
+            _genTimers = {};
+            _genStartTimes = {};
+            _genElapsedTimes = {};
         },
         onProgress: (completed, total, currentItem) => {
             const progressFill = $('#gen-progress-fill');
@@ -777,14 +789,12 @@ function initGalleryPanel() {
             progressText.textContent = `${completed}/${total} — 🎨 ${currentItem.sceneName}`;
 
             // Initialize timer for current item
-            if (!window._genTimers) window._genTimers = {};
-            if (!window._genStartTimes) window._genStartTimes = {};
-            if (window._genTimers[currentItem.sceneIndex]) {
-                clearInterval(window._genTimers[currentItem.sceneIndex]);
+            if (_genTimers[currentItem.sceneIndex]) {
+                clearInterval(_genTimers[currentItem.sceneIndex]);
             }
             const startTime = Date.now();
-            window._genStartTimes[currentItem.sceneIndex] = startTime;
-            window._genTimers[currentItem.sceneIndex] = setInterval(() => {
+            _genStartTimes[currentItem.sceneIndex] = startTime;
+            _genTimers[currentItem.sceneIndex] = setInterval(() => {
                 const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
                 const startTimerEl = $(`#frame-start-timer-${currentItem.sceneIndex}`);
                 const endTimerEl = $(`#frame-end-timer-${currentItem.sceneIndex}`);
@@ -793,16 +803,15 @@ function initGalleryPanel() {
             }, 100);
         },
         onItemComplete: (item, result) => {
-            console.log(`✅ [App/Queue] Item complete: "${item.sceneName}" (scene #${item.sceneIndex})`);
-            if (window._genTimers?.[item.sceneIndex]) {
-                clearInterval(window._genTimers[item.sceneIndex]);
+            log.info(`✅ [App/Queue] Item complete: "${item.sceneName}" (scene #${item.sceneIndex})`);
+            if (_genTimers[item.sceneIndex]) {
+                clearInterval(_genTimers[item.sceneIndex]);
             }
             // Calculate and store elapsed time
             let elapsedSec = null;
-            if (window._genStartTimes?.[item.sceneIndex]) {
-                elapsedSec = ((Date.now() - window._genStartTimes[item.sceneIndex]) / 1000).toFixed(1);
-                if (!window._genElapsedTimes) window._genElapsedTimes = {};
-                window._genElapsedTimes[item.sceneIndex] = elapsedSec;
+            if (_genStartTimes[item.sceneIndex]) {
+                elapsedSec = ((Date.now() - _genStartTimes[item.sceneIndex]) / 1000).toFixed(1);
+                _genElapsedTimes[item.sceneIndex] = elapsedSec;
             }
             // Update gallery UI with elapsed time
             updateGalleryFrame(item.sceneIndex, result, elapsedSec);
@@ -822,9 +831,9 @@ function initGalleryPanel() {
             $('#stat-images').textContent = status.done * 2;
         },
         onItemError: (item, error) => {
-            console.error(`❌ [App/Queue] Item error: "${item.sceneName}" — ${error.message}`);
-            if (window._genTimers?.[item.sceneIndex]) {
-                clearInterval(window._genTimers[item.sceneIndex]);
+            log.error(`❌ [App/Queue] Item error: "${item.sceneName}" — ${error.message}`);
+            if (_genTimers[item.sceneIndex]) {
+                clearInterval(_genTimers[item.sceneIndex]);
             }
             showToast(`❌ ${item.sceneName}: ${error.message}`, 'error');
             // Show error state in gallery
@@ -834,7 +843,7 @@ function initGalleryPanel() {
             if (endEl) endEl.innerHTML = `<div class="gallery-frame-placeholder error">❌ Lỗi</div>`;
         },
         onQueueComplete: (stats) => {
-            console.log(`🏁 [App/Queue] Queue complete — done: ${stats.done}, error: ${stats.error}, cancelled: ${stats.cancelled}`);
+            log.info(`🏁 [App/Queue] Queue complete — done: ${stats.done}, error: ${stats.error}, cancelled: ${stats.cancelled}`);
             const progressFill = $('#gen-progress-fill');
             const progressText = $('#gen-progress-text');
             progressFill.style.width = '100%';
@@ -855,7 +864,6 @@ function initGalleryPanel() {
             $('#btn-generate-all').style.display = '';
             $('#btn-download-all').disabled = false;
             showCancelButton(false);
-            // Re-enable all regen buttons
             // Re-enable all regen buttons
             $$('.btn-regen').forEach(btn => { btn.disabled = false; });
             $$('.btn-edit-start').forEach(btn => { btn.disabled = false; });
@@ -1017,12 +1025,12 @@ function generateAllImages() {
 
     const skippedCount = state.framePrompts.length - pendingPrompts.length;
 
-    console.group('🖼️ [App] generateAllImages()');
-    console.log(`⚙️ [App] Provider: ${state.provider} | Model: ${state.imageModel} | AR: ${state.aspectRatio}`);
-    console.log(`📎 [App] Reference images: ${state.referenceImages?.length || 0}`);
-    console.log(`⏭️ [App] Skipping ${skippedCount} already-generated scenes`);
-    console.log(`🎯 [App] Scenes to generate: ${pendingPrompts.length} (${pendingPrompts.length * 2} images)`);
-    console.groupEnd();
+    log.group('🖼️ [App] generateAllImages()');
+    log.debug(`⚙️ [App] Provider: ${state.provider} | Model: ${state.imageModel} | AR: ${state.aspectRatio}`);
+    log.debug(`📎 [App] Reference images: ${state.referenceImages?.length || 0}`);
+    log.debug(`⏭️ [App] Skipping ${skippedCount} already-generated scenes`);
+    log.debug(`🎯 [App] Scenes to generate: ${pendingPrompts.length} (${pendingPrompts.length * 2} images)`);
+    log.groupEnd();
 
     if (skippedCount > 0) {
         showToast(`⏭️ Bỏ qua ${skippedCount} scenes đã có, tiếp tục ${pendingPrompts.length} scenes còn lại`, 'info');
@@ -1066,10 +1074,10 @@ function generateSingleScene(sceneIndex) {
     const fp = state.framePrompts.find(f => f.sceneIndex === sceneIndex);
     if (!fp) return;
 
-    console.group(`🔄 [App] generateSingleScene(${sceneIndex}) → "${fp.sceneName}"`);
-    console.log(`⚙️ [App] Provider: ${state.provider} | Model: ${state.imageModel}`);
-    console.log(`📎 [App] Reference images: ${state.referenceImages?.length || 0}`);
-    console.groupEnd();
+    log.group(`🔄 [App] generateSingleScene(${sceneIndex}) → "${fp.sceneName}"`);
+    log.debug(`⚙️ [App] Provider: ${state.provider} | Model: ${state.imageModel}`);
+    log.debug(`📎 [App] Reference images: ${state.referenceImages?.length || 0}`);
+    log.groupEnd();
 
     // Show loading state
     const startEl = $(`#frame-start-${sceneIndex}`);
@@ -1109,9 +1117,9 @@ function editSceneWithAI(sceneIndex, editPrompt, targetFrame) {
     const fp = state.framePrompts.find(f => f.sceneIndex === sceneIndex);
     if (!fp) return;
 
-    console.group(`✏️ [App] editSceneWithAI(${sceneIndex}, ${targetFrame}) → "${fp.sceneName}"`);
-    console.log(`💬 [App] Edit instruction: ${editPrompt}`);
-    console.groupEnd();
+    log.group(`✏️ [App] editSceneWithAI(${sceneIndex}, ${targetFrame}) → "${fp.sceneName}"`);
+    log.debug(`💬 [App] Edit instruction: ${editPrompt}`);
+    log.groupEnd();
 
     // Show loading state ONLY for the target frame
     const frameEl = targetFrame === 'start' ? $(`#frame-start-${sceneIndex}`) : $(`#frame-end-${sceneIndex}`);
@@ -1231,6 +1239,7 @@ async function downloadAllAsZip() {
         URL.revokeObjectURL(url);
         showToast('✅ ZIP downloaded!', 'success');
     } catch (err) {
+        log.error('ZIP error:', err);
         showToast(`❌ ZIP error: ${err.message}`, 'error');
     }
 }
@@ -1276,23 +1285,14 @@ async function loadZipState(file) {
         rebuildFromState();
 
     } catch (e) {
-        console.error('ZIP Load error:', e);
+        log.error('ZIP Load error:', e);
         showToast(`❌ Lỗi khi load ZIP: ${e.message}`, 'error');
     } finally {
         $('#upload-zip-input').value = '';
     }
 }
 
-// ============================================================
-// RESTORE STATE
-// ============================================================
-
-function restoreState() {
-    const state = getState();
-    if (state.apiKey) {
-        $('#api-key').value = state.apiKey;
-    }
-}
+// restoreState() removed — dead code superseded by rebuildFromState()
 
 // ============================================================
 // TOAST NOTIFICATIONS
@@ -1305,10 +1305,10 @@ function showToast(message, type = 'info') {
     toast.textContent = message;
     container.appendChild(toast);
 
-    setTimeout(() => {
+    setTimeout(() => {
         toast.classList.add('toast-exit');
-        setTimeout(() => toast.remove(), 300);
-    }, 3500);
+        setTimeout(() => toast.remove(), 300);
+    }, TOAST_DURATION);
 }
 
 // ============================================================

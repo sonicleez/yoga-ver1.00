@@ -6,6 +6,8 @@
  * - Generated images (base64) → IndexedDB (can be very large)
  */
 
+import { log } from './logger.js';
+
 const DB_NAME = 'yogakids_db';
 const DB_VERSION = 1;
 const DB_STORE = 'images';
@@ -45,7 +47,9 @@ const state = {
 // ============================================================
 
 export function getState() {
-    return state;
+    // Return a shallow-frozen copy to prevent accidental mutation.
+    // Callers must use setState() to modify state to ensure persistence + listeners.
+    return Object.freeze({ ...state });
 }
 
 /**
@@ -64,7 +68,7 @@ export function setApiKey(provider, key) {
     try {
         localStorage.setItem(LS_PREFIX + 'apiKeys', JSON.stringify(state.apiKeys));
     } catch (e) {
-        console.warn('[State] Failed to persist apiKeys:', e.message);
+        log.warn('[State] Failed to persist apiKeys:', e.message);
     }
 }
 
@@ -77,7 +81,7 @@ export function setState(key, value) {
         try {
             localStorage.setItem(LS_PREFIX + key, JSON.stringify(value));
         } catch (e) {
-            console.warn(`[State] Failed to persist ${key}:`, e.message);
+            log.warn(`[State] Failed to persist ${key}:`, e.message);
         }
     }
 
@@ -102,7 +106,7 @@ export function onStateChange(key, callback) {
  * @returns {Promise<void>}
  */
 export async function restoreAllState() {
-    console.group('💾 [State] Restoring persisted state');
+    log.group('💾 [State] Restoring persisted state');
 
     // 1. Restore from localStorage
     for (const key of PERSIST_KEYS) {
@@ -110,10 +114,10 @@ export async function restoreAllState() {
             const raw = localStorage.getItem(LS_PREFIX + key);
             if (raw !== null) {
                 state[key] = JSON.parse(raw);
-                console.log(`  ✅ ${key}: restored`);
+                log.debug(`  ✅ ${key}: restored`);
             }
         } catch (e) {
-            console.warn(`  ⚠️ ${key}: failed to parse`, e.message);
+            log.warn(`  ⚠️ ${key}: failed to parse`, e.message);
         }
     }
 
@@ -129,7 +133,7 @@ export async function restoreAllState() {
         if (v && !localStorage.getItem(LS_PREFIX + newKey)) {
             state[newKey] = v;
             localStorage.setItem(LS_PREFIX + newKey, JSON.stringify(v));
-            console.log(`  🔄 Migrated legacy ${oldKey} → ${newKey}`);
+            log.debug(`  🔄 Migrated legacy ${oldKey} → ${newKey}`);
         }
     }
 
@@ -150,7 +154,7 @@ export async function restoreAllState() {
                 // Persist new format and remove old
                 localStorage.setItem(LS_PREFIX + 'apiKeys', JSON.stringify(state.apiKeys));
                 localStorage.removeItem(LS_PREFIX + 'apiKey');
-                console.log('  🔄 Migrated single apiKey → apiKeys');
+                log.debug('  🔄 Migrated single apiKey → apiKeys');
             }
         } catch { /* ignore */ }
     }
@@ -170,13 +174,13 @@ export async function restoreAllState() {
                 }
             }
             state.generatedImages = images;
-            console.log(`  🖼️ Restored ${Object.keys(images).length} generated image sets from IndexedDB`);
+            log.debug(`  🖼️ Restored ${Object.keys(images).length} generated image sets from IndexedDB`);
         }
     } catch (e) {
-        console.warn('  ⚠️ Failed to restore images from IndexedDB:', e.message);
+        log.warn('  ⚠️ Failed to restore images from IndexedDB:', e.message);
     }
 
-    console.groupEnd();
+    log.groupEnd();
 }
 
 /**
@@ -250,7 +254,7 @@ async function saveImagesToIDB(images) {
             tx.onerror = () => reject(tx.error);
         });
     } catch (e) {
-        console.warn('[State] Failed to save images to IDB:', e.message);
+        log.warn('[State] Failed to save images to IDB:', e.message);
     }
 }
 

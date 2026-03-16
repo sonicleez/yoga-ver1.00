@@ -14,6 +14,8 @@
  *   - Also: /api/v1/chat/completions for AI analysis
  */
 
+import { log } from './logger.js';
+
 // ============================================================
 // API ROUTING (via proxy)
 // Dev: Vite proxy handles /api/* → external APIs
@@ -147,10 +149,10 @@ export const ANALYSIS_MODELS = {
  */
 export async function generateImage(prompt, apiKey, options = {}) {
     const provider = options.provider || detectProvider(apiKey);
-    console.log(`🖼️ [ImageGen] generateImage() → Provider: ${provider}, Model: ${options.model || 'default'}`);
-    console.log(`🖼️ [ImageGen] Prompt (${prompt.length} chars): "${prompt.substring(0, 100)}..."`);
+    log.debug(`🖼️ [ImageGen] generateImage() → Provider: ${provider}, Model: ${options.model || 'default'}`);
+    log.debug(`🖼️ [ImageGen] Prompt (${prompt.length} chars): "${prompt.substring(0, 100)}..."`);
     if (options.referenceImages?.length) {
-        console.log(`🖼️ [ImageGen] Reference images: ${options.referenceImages.length} provided`);
+        log.debug(`🖼️ [ImageGen] Reference images: ${options.referenceImages.length} provided`);
     }
 
     if (provider === 'vertex-key') {
@@ -168,7 +170,7 @@ export async function verifyApiKey(apiKey, provider = null) {
     const prov = provider || detectProvider(apiKey);
 
     if (prov === 'gommo') {
-        console.log('🔍 [Verify] Gommo API Key...');
+        log.debug('🔍 [Verify] Gommo API Key...');
         let domain = '10xyoutube.net';
         let token = apiKey;
         if (apiKey.includes('|')) {
@@ -230,10 +232,10 @@ async function generateImageGoogleAI(prompt, apiKey, options = {}) {
         referenceImages = [],
     } = options;
 
-    console.group(`🌐 [GoogleAI] generateImageGoogleAI()`);
-    console.log(`📋 Model: ${model} | AR: ${aspectRatio} | Size: ${imageSize}`);
-    console.log(`📎 Reference images: ${referenceImages.length}`);
-    console.time('⏱️ GoogleAI API call');
+    log.group(`🌐 [GoogleAI] generateImageGoogleAI()`);
+    log.debug(`📋 Model: ${model} | AR: ${aspectRatio} | Size: ${imageSize}`);
+    log.debug(`📎 Reference images: ${referenceImages.length}`);
+    log.time('⏱️ GoogleAI API call');
 
     const API_BASE = GOOGLE_AI_BASE;
 
@@ -258,8 +260,8 @@ async function generateImageGoogleAI(prompt, apiKey, options = {}) {
         if (imageSize) body.generationConfig.imageConfig.imageSize = imageSize;
     }
 
-    const url = `${API_BASE}/${model}:generateContent?key=${apiKey.substring(0, 8)}...`;
-    console.log(`🔗 [GoogleAI] URL: ${url}`);
+    const url = `${API_BASE}/${model}:generateContent`;
+    log.debug(`🔗 [GoogleAI] URL: ${url} (key=***)`);
 
     const response = await fetch(`${API_BASE}/${model}:generateContent?key=${apiKey}`, {
         method: 'POST',
@@ -267,22 +269,22 @@ async function generateImageGoogleAI(prompt, apiKey, options = {}) {
         body: JSON.stringify(body),
     });
 
-    console.log(`📡 [GoogleAI] Response status: ${response.status} ${response.statusText}`);
+    log.debug(`📡 [GoogleAI] Response status: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        console.error(`❌ [GoogleAI] Error response:`, error);
-        console.timeEnd('⏱️ GoogleAI API call');
-        console.groupEnd();
+        log.error(`❌ [GoogleAI] Error response:`, error);
+        log.timeEnd('⏱️ GoogleAI API call');
+        log.groupEnd();
         throw new Error(error?.error?.message || `Google AI error: ${response.status}`);
     }
 
     const data = await response.json();
     const candidates = data.candidates || [];
     if (candidates.length === 0) {
-        console.error('❌ [GoogleAI] No candidates in response');
-        console.timeEnd('⏱️ GoogleAI API call');
-        console.groupEnd();
+        log.error('❌ [GoogleAI] No candidates in response');
+        log.timeEnd('⏱️ GoogleAI API call');
+        log.groupEnd();
         throw new Error('No image generated');
     }
 
@@ -290,16 +292,16 @@ async function generateImageGoogleAI(prompt, apiKey, options = {}) {
     const imagePart = partsOut.find(p => p.inlineData);
     if (!imagePart) {
         const textPart = partsOut.find(p => p.text);
-        console.error('❌ [GoogleAI] No image part found, text response:', textPart?.text);
-        console.timeEnd('⏱️ GoogleAI API call');
-        console.groupEnd();
+        log.error('❌ [GoogleAI] No image part found, text response:', textPart?.text);
+        log.timeEnd('⏱️ GoogleAI API call');
+        log.groupEnd();
         throw new Error(textPart?.text || 'No image in response');
     }
 
     const base64 = imagePart.inlineData.data;
-    console.log(`✅ [GoogleAI] Image received: ${Math.round(base64.length / 1024)}KB base64`);
-    console.timeEnd('⏱️ GoogleAI API call');
-    console.groupEnd();
+    log.debug(`✅ [GoogleAI] Image received: ${Math.round(base64.length / 1024)}KB base64`);
+    log.timeEnd('⏱️ GoogleAI API call');
+    log.groupEnd();
     return { base64, blobUrl: base64ToBlobUrl(base64), imageUrl: null };
 }
 
@@ -313,10 +315,10 @@ async function generateImageVertexKey(prompt, apiKey, options = {}) {
         referenceImages = [],
     } = options;
 
-    console.group(`🔑 [VertexKey] generateImageVertexKey()`);
-    console.log(`📋 Model: ${model}`);
-    console.log(`📋 Key: ${apiKey ? apiKey.substring(0, 10) + '...' : 'MISSING'}`);
-    console.time('⏱️ VertexKey API call');
+    log.group(`🔑 [VertexKey] generateImageVertexKey()`);
+    log.debug(`📋 Model: ${model}`);
+    log.debug(`📋 Key: ${apiKey ? apiKey.substring(0, 10) + '...' : 'MISSING'}`);
+    log.time('⏱️ VertexKey API call');
 
     const VERTEX_BASE = VERTEX_KEY_BASE;
 
@@ -351,7 +353,7 @@ async function generateImageVertexKey(prompt, apiKey, options = {}) {
     };
 
     const url = `${VERTEX_BASE}/chat/completions`;
-    console.log(`🔗 [VertexKey] URL: ${url} (chat completions endpoint)`);
+    log.debug(`🔗 [VertexKey] URL: ${url} (chat completions endpoint)`);
 
     const response = await fetch(url, {
         method: 'POST',
@@ -362,37 +364,37 @@ async function generateImageVertexKey(prompt, apiKey, options = {}) {
         body: JSON.stringify(body),
     });
 
-    console.log(`📡 [VertexKey] Response status: ${response.status} ${response.statusText}`);
+    log.debug(`📡 [VertexKey] Response status: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        console.error('❌ [VertexKey] Error response:', error);
-        console.timeEnd('⏱️ VertexKey API call');
-        console.groupEnd();
+        log.error('❌ [VertexKey] Error response:', error);
+        log.timeEnd('⏱️ VertexKey API call');
+        log.groupEnd();
         throw new Error(error?.error?.message || `Vertex Key error: ${response.status}`);
     }
 
     const data = await response.json();
     const text = data.choices?.[0]?.message?.content || '';
-    console.log(`📦 [VertexKey] Response text (${text.length} chars): "${text.substring(0, 150)}..."`);
+    log.debug(`📦 [VertexKey] Response text (${text.length} chars): "${text.substring(0, 150)}..."`);
 
     // Method 1: Gemini image models return markdown image URLs like ![...](https://...)
     const imageUrlMatch = text.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/);
     if (imageUrlMatch) {
         const imageUrl = imageUrlMatch[1];
-        console.log(`🔗 [VertexKey] Found markdown image URL: ${imageUrl.substring(0, 80)}...`);
+        log.debug(`🔗 [VertexKey] Found markdown image URL: ${imageUrl.substring(0, 80)}...`);
         try {
             const imgRes = await fetch(imageUrl);
             const imgBlob = await imgRes.blob();
             const base64 = await blobToBase64(imgBlob);
-            console.log(`✅ [VertexKey] Downloaded & converted: ${Math.round(base64.length / 1024)}KB`);
-            console.timeEnd('⏱️ VertexKey API call');
-            console.groupEnd();
+            log.debug(`✅ [VertexKey] Downloaded & converted: ${Math.round(base64.length / 1024)}KB`);
+            log.timeEnd('⏱️ VertexKey API call');
+            log.groupEnd();
             return { base64, blobUrl: URL.createObjectURL(imgBlob), imageUrl };
         } catch (dlErr) {
-            console.warn(`⚠️ [VertexKey] Download failed, using URL directly:`, dlErr.message);
-            console.timeEnd('⏱️ VertexKey API call');
-            console.groupEnd();
+            log.warn(`⚠️ [VertexKey] Download failed, using URL directly:`, dlErr.message);
+            log.timeEnd('⏱️ VertexKey API call');
+            log.groupEnd();
             return { base64: null, blobUrl: imageUrl, imageUrl };
         }
     }
@@ -401,18 +403,18 @@ async function generateImageVertexKey(prompt, apiKey, options = {}) {
     const bareUrlMatch = text.match(/(https?:\/\/[^\s"'<>]+\.(?:png|jpg|jpeg|webp|gif)[^\s"'<>]*)/i);
     if (bareUrlMatch) {
         const imageUrl = bareUrlMatch[1];
-        console.log(`🔗 [VertexKey] Found bare image URL: ${imageUrl.substring(0, 80)}...`);
+        log.debug(`🔗 [VertexKey] Found bare image URL: ${imageUrl.substring(0, 80)}...`);
         try {
             const imgRes = await fetch(imageUrl);
             const imgBlob = await imgRes.blob();
             const base64 = await blobToBase64(imgBlob);
-            console.log(`✅ [VertexKey] Downloaded: ${Math.round(base64.length / 1024)}KB`);
-            console.timeEnd('⏱️ VertexKey API call');
-            console.groupEnd();
+            log.debug(`✅ [VertexKey] Downloaded: ${Math.round(base64.length / 1024)}KB`);
+            log.timeEnd('⏱️ VertexKey API call');
+            log.groupEnd();
             return { base64, blobUrl: URL.createObjectURL(imgBlob), imageUrl };
         } catch {
-            console.timeEnd('⏱️ VertexKey API call');
-            console.groupEnd();
+            log.timeEnd('⏱️ VertexKey API call');
+            log.groupEnd();
             return { base64: null, blobUrl: imageUrl, imageUrl };
         }
     }
@@ -421,30 +423,30 @@ async function generateImageVertexKey(prompt, apiKey, options = {}) {
     const base64Match = text.match(/data:image\/[^;]+;base64,([A-Za-z0-9+/=]+)/);
     if (base64Match) {
         const base64 = base64Match[1];
-        console.log(`✅ [VertexKey] Found inline base64: ${Math.round(base64.length / 1024)}KB`);
-        console.timeEnd('⏱️ VertexKey API call');
-        console.groupEnd();
+        log.debug(`✅ [VertexKey] Found inline base64: ${Math.round(base64.length / 1024)}KB`);
+        log.timeEnd('⏱️ VertexKey API call');
+        log.groupEnd();
         return { base64, blobUrl: base64ToBlobUrl(base64), imageUrl: null };
     }
 
     // Method 4: Check OpenAI-style response format
     if (data.data?.[0]?.b64_json) {
         const base64 = data.data[0].b64_json;
-        console.log(`✅ [VertexKey] Got b64_json: ${Math.round(base64.length / 1024)}KB`);
-        console.timeEnd('⏱️ VertexKey API call');
-        console.groupEnd();
+        log.debug(`✅ [VertexKey] Got b64_json: ${Math.round(base64.length / 1024)}KB`);
+        log.timeEnd('⏱️ VertexKey API call');
+        log.groupEnd();
         return { base64, blobUrl: base64ToBlobUrl(base64), imageUrl: null };
     }
     if (data.data?.[0]?.url) {
         const imageUrl = data.data[0].url;
-        console.timeEnd('⏱️ VertexKey API call');
-        console.groupEnd();
+        log.timeEnd('⏱️ VertexKey API call');
+        log.groupEnd();
         return { base64: null, blobUrl: imageUrl, imageUrl };
     }
 
-    console.error('❌ [VertexKey] No image found. Full response:', text.substring(0, 300));
-    console.timeEnd('⏱️ VertexKey API call');
-    console.groupEnd();
+    log.error('❌ [VertexKey] No image found. Full response:', text.substring(0, 300));
+    log.timeEnd('⏱️ VertexKey API call');
+    log.groupEnd();
     throw new Error(`No image in response. Model returned: ${text.substring(0, 150)}`);
 }
 
@@ -459,9 +461,9 @@ async function generateImageGommo(prompt, apiKey, options = {}) {
         referenceImages = [],
     } = options;
 
-    console.group(`🍌 [Gommo] generateImageGommo()`);
-    console.log(`📋 Model: ${model}`);
-    console.time('⏱️ Gommo API call');
+    log.group(`🍌 [Gommo] generateImageGommo()`);
+    log.debug(`📋 Model: ${model}`);
+    log.time('⏱️ Gommo API call');
 
     // Parse apiKey string which may contain domain (domain.net|access_token)
     let domain = '10xyoutube.net';
@@ -505,11 +507,11 @@ async function generateImageGommo(prompt, apiKey, options = {}) {
                 }
 
                 const sizeKB = Math.round((base64Raw.length * 0.75) / 1024);
-                console.log(`📤 [Gommo] Processing ref image ${i + 1}/${referenceImages.length} (${sizeKB}KB)...`);
+                log.debug(`📤 [Gommo] Processing ref image ${i + 1}/${referenceImages.length} (${sizeKB}KB)...`);
 
                 // Skip tiny/invalid images (< 1KB is likely broken)
                 if (sizeKB < 1) {
-                    console.warn(`⚠️ [Gommo] Ref image ${i + 1} too small (${sizeKB}KB), skipping`);
+                    log.warn(`⚠️ [Gommo] Ref image ${i + 1} too small (${sizeKB}KB), skipping`);
                     continue;
                 }
 
@@ -533,22 +535,22 @@ async function generateImageGommo(prompt, apiKey, options = {}) {
 
                 const uploadData = await uploadRes.json();
                 if (!uploadRes.ok || uploadData.error || !uploadData.imageInfo?.url) {
-                    console.warn(`⚠️ [Gommo] Upload ref ${i + 1} failed:`, uploadData.message || uploadData.error);
+                    log.warn(`⚠️ [Gommo] Upload ref ${i + 1} failed:`, uploadData.message || uploadData.error);
                     continue;
                 }
 
-                console.log(`✅ [Gommo] Ref ${i + 1} uploaded → ${uploadData.imageInfo.url}`);
+                log.debug(`✅ [Gommo] Ref ${i + 1} uploaded → ${uploadData.imageInfo.url}`);
                 subjectUrls.push(uploadData.imageInfo.url);
             }
         } catch (err) {
-            console.warn('⚠️ [Gommo] Subject upload error:', err.message);
+            log.warn('⚠️ [Gommo] Subject upload error:', err.message);
         }
     }
 
     // Attach subjects as array of URL strings (NOT objects with {url:...})
     if (subjectUrls.length > 0) {
         body.append('subjects', JSON.stringify(subjectUrls));
-        console.log(`📎 [Gommo] Strategy 1: Attached ${subjectUrls.length} subject URL(s): ${JSON.stringify(subjectUrls)}`);
+        log.debug(`📎 [Gommo] Strategy 1: Attached ${subjectUrls.length} subject URL(s): ${JSON.stringify(subjectUrls)}`);
     }
 
     // Helper: call Create Image then poll for result
@@ -569,11 +571,11 @@ async function generateImageGommo(prompt, apiKey, options = {}) {
 
         // Check if image is already done (some models return SUCCESS immediately)
         if (data.imageInfo.status === 'SUCCESS' && data.imageInfo.url) {
-            console.log(`✅ [Gommo] Image ready immediately: ${idBase}`);
+            log.debug(`✅ [Gommo] Image ready immediately: ${idBase}`);
             return data.imageInfo.url;
         }
 
-        console.log(`✅ [Gommo] Job created: ${idBase}, polling...`);
+        log.debug(`✅ [Gommo] Job created: ${idBase}, polling...`);
 
         // Poll Check Image Status endpoint
         const maxRetries = 60;
@@ -599,7 +601,7 @@ async function generateImageGommo(prompt, apiKey, options = {}) {
                 throw new Error(s.error || s.message || s.reason || 'Gommo image generation failed');
             }
 
-            console.log(`[Gommo] Poll ${attempt}/${maxRetries}… status: ${s.status}`);
+            log.debug(`[Gommo] Poll ${attempt}/${maxRetries}… status: ${s.status}`);
             await sleep(3000);
         }
 
@@ -620,8 +622,8 @@ async function generateImageGommo(prompt, apiKey, options = {}) {
 
             if (isSubjectError && base64Refs.length > 0) {
                 // Strategy 2: try with base64 data URI subjects
-                console.warn(`⚠️ [Gommo] Strategy 1 (URL subjects) failed: "${firstErr.message}"`);
-                console.log(`🔄 [Gommo] Strategy 2: Trying with base64 data URI subjects...`);
+                log.warn(`⚠️ [Gommo] Strategy 1 (URL subjects) failed: "${firstErr.message}"`);
+                log.debug(`🔄 [Gommo] Strategy 2: Trying with base64 data URI subjects...`);
                 body.delete('subjects');
                 body.append('subjects', JSON.stringify(base64Refs));
 
@@ -631,8 +633,8 @@ async function generateImageGommo(prompt, apiKey, options = {}) {
                     const isSubjectError2 = /phân tích|subjects|thành phần|parse/i.test(secondErr.message);
                     if (isSubjectError2) {
                         // Strategy 3: no subjects at all
-                        console.warn(`⚠️ [Gommo] Strategy 2 (base64 subjects) also failed: "${secondErr.message}"`);
-                        console.log(`🔄 [Gommo] Strategy 3: Generating WITHOUT subjects (no character reference)...`);
+                        log.warn(`⚠️ [Gommo] Strategy 2 (base64 subjects) also failed: "${secondErr.message}"`);
+                        log.debug(`🔄 [Gommo] Strategy 3: Generating WITHOUT subjects (no character reference)...`);
                         body.delete('subjects');
                         imageUrl = await createAndPoll(body);
                     } else {
@@ -641,7 +643,7 @@ async function generateImageGommo(prompt, apiKey, options = {}) {
                 }
             } else if (isSubjectError && subjectUrls.length > 0) {
                 // Strategy 3: no subjects
-                console.warn(`⚠️ [Gommo] Subject error: "${firstErr.message}". Retrying WITHOUT subjects...`);
+                log.warn(`⚠️ [Gommo] Subject error: "${firstErr.message}". Retrying WITHOUT subjects...`);
                 body.delete('subjects');
                 imageUrl = await createAndPoll(body);
             } else {
@@ -649,7 +651,7 @@ async function generateImageGommo(prompt, apiKey, options = {}) {
             }
         }
 
-        console.log(`🔗 [Gommo] Image URL: ${imageUrl.substring(0, 80)}...`);
+        log.debug(`🔗 [Gommo] Image URL: ${imageUrl.substring(0, 80)}...`);
 
         // Download image to base64 for IndexedDB storage
         const imgRes = await fetch(imageUrl);
@@ -658,19 +660,19 @@ async function generateImageGommo(prompt, apiKey, options = {}) {
         let base64 = null;
         try {
             base64 = await blobToBase64(imgBlob);
-            console.log(`✅ [Gommo] Downloaded & converted: ${Math.round(base64.length / 1024)}KB`);
+            log.debug(`✅ [Gommo] Downloaded & converted: ${Math.round(base64.length / 1024)}KB`);
         } catch (e) {
-            console.warn('⚠️ [Gommo] base64 conversion failed, using URL directly', e);
+            log.warn('⚠️ [Gommo] base64 conversion failed, using URL directly', e);
         }
 
-        console.timeEnd('⏱️ Gommo API call');
-        console.groupEnd();
+        log.timeEnd('⏱️ Gommo API call');
+        log.groupEnd();
         return { base64, blobUrl: URL.createObjectURL(imgBlob), imageUrl };
 
     } catch (err) {
-        console.error('❌ [Gommo] Error:', err);
-        console.timeEnd('⏱️ Gommo API call');
-        console.groupEnd();
+        log.error('❌ [Gommo] Error:', err);
+        log.timeEnd('⏱️ Gommo API call');
+        log.groupEnd();
         throw err;
     }
 }
@@ -689,11 +691,11 @@ export async function chatCompletion(systemPrompt, userPrompt, apiKey, options =
         temperature = 0.7,
     } = options;
 
-    console.group(`💬[ChatCompletion] model: ${model}`);
-    console.log(`📋 System prompt(${systemPrompt.length} chars): "${systemPrompt.substring(0, 80)}..."`);
-    console.log(`📋 User prompt(${userPrompt.length} chars): "${userPrompt.substring(0, 80)}..."`);
-    console.log(`⚙️ maxTokens: ${maxTokens}, temperature: ${temperature}`);
-    console.time('⏱️ ChatCompletion API call');
+    log.group(`💬[ChatCompletion] model: ${model}`);
+    log.debug(`📋 System prompt(${systemPrompt.length} chars): "${systemPrompt.substring(0, 80)}..."`);
+    log.debug(`📋 User prompt(${userPrompt.length} chars): "${userPrompt.substring(0, 80)}..."`);
+    log.debug(`⚙️ maxTokens: ${maxTokens}, temperature: ${temperature}`);
+    log.time('⏱️ ChatCompletion API call');
 
     const url = `${VERTEX_KEY_BASE}/chat/completions`;
     const body = {
@@ -715,21 +717,21 @@ export async function chatCompletion(systemPrompt, userPrompt, apiKey, options =
         body: JSON.stringify(body),
     });
 
-    console.log(`📡[ChatCompletion] Response status: ${response.status}`);
+    log.debug(`📡[ChatCompletion] Response status: ${response.status}`);
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        console.error('❌ [ChatCompletion] Error:', error);
-        console.timeEnd('⏱️ ChatCompletion API call');
-        console.groupEnd();
+        log.error('❌ [ChatCompletion] Error:', error);
+        log.timeEnd('⏱️ ChatCompletion API call');
+        log.groupEnd();
         throw new Error(error?.error?.message || `Chat error: ${response.status}`);
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || '';
-    console.log(`✅[ChatCompletion] Response(${content.length} chars): "${content.substring(0, 100)}..."`);
-    console.timeEnd('⏱️ ChatCompletion API call');
-    console.groupEnd();
+    log.debug(`✅[ChatCompletion] Response(${content.length} chars): "${content.substring(0, 100)}..."`);
+    log.timeEnd('⏱️ ChatCompletion API call');
+    log.groupEnd();
     return content;
 }
 
@@ -741,8 +743,8 @@ export async function chatCompletion(systemPrompt, userPrompt, apiKey, options =
  * Generate start + end frame images for a scene.
  */
 export async function generateSceneImages(framePrompt, apiKey, options = {}) {
-    console.group(`🎬[SceneImages] Scene #${framePrompt.sceneIndex}: "${framePrompt.sceneName}"`);
-    console.time(`⏱️ Scene "${framePrompt.sceneName}" total`);
+    log.group(`🎬[SceneImages] Scene #${framePrompt.sceneIndex}: "${framePrompt.sceneName}"`);
+    log.time(`⏱️ Scene "${framePrompt.sceneName}" total`);
 
     let startResult = undefined;
     let endResult = undefined;
@@ -751,30 +753,30 @@ export async function generateSceneImages(framePrompt, apiKey, options = {}) {
     const effectiveOptions = { ...options };
     if (framePrompt.customReferenceImage && (!options.targetFrame || options.targetFrame === 'start')) {
         effectiveOptions.referenceImages = [framePrompt.customReferenceImage];
-        console.log(`📎[SceneImages] Using CUSTOM reference image for this scene`);
+        log.debug(`📎[SceneImages] Using CUSTOM reference image for this scene`);
     }
 
     if (!effectiveOptions.targetFrame || effectiveOptions.targetFrame === 'start') {
         // 1. Generate start frame using original character image from options
-        console.log(`🟢[SceneImages] Generating START frame...`);
-        console.log(`📎[SceneImages] Reference images from options: ${effectiveOptions.referenceImages?.length || 0}`);
+        log.debug(`🟢[SceneImages] Generating START frame...`);
+        log.debug(`📎[SceneImages] Reference images from options: ${effectiveOptions.referenceImages?.length || 0}`);
         startResult = await generateImage(
             framePrompt.startFrame.prompt,
             apiKey,
             effectiveOptions
         );
-        console.log(`✅[SceneImages] START frame done — base64: ${startResult.base64 ? Math.round(startResult.base64.length / 1024) + 'KB' : 'null'}, blobUrl: ${startResult.blobUrl ? 'yes' : 'no'}`);
+        log.debug(`✅[SceneImages] START frame done — base64: ${startResult.base64 ? Math.round(startResult.base64.length / 1024) + 'KB' : 'null'}, blobUrl: ${startResult.blobUrl ? 'yes' : 'no'}`);
 
         if (!options.targetFrame) {
             // Rate limit delay
-            console.log(`⏳[SceneImages] Rate limit delay 1500ms...`);
+            log.debug(`⏳[SceneImages] Rate limit delay 1500ms...`);
             await sleep(1500);
         }
     }
 
     if (!options.targetFrame || options.targetFrame === 'end') {
         // 2. Generate end frame using the start frame as reference
-        console.log(`🔴[SceneImages] Generating END frame...`);
+        log.debug(`🔴[SceneImages] Generating END frame...`);
         const endOptions = { ...options };
 
         if (options.targetFrame === 'end') {
@@ -782,10 +784,10 @@ export async function generateSceneImages(framePrompt, apiKey, options = {}) {
         } else {
             if (startResult?.base64) {
                 endOptions.referenceImages = [startResult.base64];
-                console.log(`📎[SceneImages] Using START frame as reference for END frame(${Math.round(startResult.base64.length / 1024)}KB)`);
+                log.debug(`📎[SceneImages] Using START frame as reference for END frame(${Math.round(startResult.base64.length / 1024)}KB)`);
             } else {
                 endOptions.referenceImages = [];
-                console.warn(`⚠️[SceneImages] No base64 from START frame, END frame has no reference`);
+                log.warn(`⚠️[SceneImages] No base64 from START frame, END frame has no reference`);
             }
         }
 
@@ -794,11 +796,11 @@ export async function generateSceneImages(framePrompt, apiKey, options = {}) {
             apiKey,
             endOptions
         );
-        console.log(`✅[SceneImages] END frame done — base64: ${endResult.base64 ? Math.round(endResult.base64.length / 1024) + 'KB' : 'null'}, blobUrl: ${endResult.blobUrl ? 'yes' : 'no'} `);
+        log.debug(`✅[SceneImages] END frame done — base64: ${endResult.base64 ? Math.round(endResult.base64.length / 1024) + 'KB' : 'null'}, blobUrl: ${endResult.blobUrl ? 'yes' : 'no'} `);
     }
 
-    console.timeEnd(`⏱️ Scene "${framePrompt.sceneName}" total`);
-    console.groupEnd();
+    log.timeEnd(`⏱️ Scene "${framePrompt.sceneName}" total`);
+    log.groupEnd();
 
     const result = {};
     if (startResult !== undefined) result.start = startResult;

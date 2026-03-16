@@ -29,6 +29,8 @@
 // REGEX PATTERNS
 // ============================================================
 
+import { log } from './logger.js';
+
 /** Detect numbered pose: "1. Easy Pose" or "12. Cat Cow" */
 const POSE_PATTERN = /^(\d+)\.\s+(.+)$/;
 
@@ -65,7 +67,7 @@ const OUTRO_PATTERN = /^outro\s*$/i;
  *   Your body is now calm and relaxed.
  * `);
  * 
- * console.log(script.scenes);
+ * log.debug(script.scenes);
  * // [
  * //   { type: "intro", number: 0, name: "Intro", lines: ["Welcome to..."] },
  * //   { type: "pose",  number: 1, name: "Easy Pose", lines: ["Sit comfortably..."] },
@@ -74,17 +76,17 @@ const OUTRO_PATTERN = /^outro\s*$/i;
  * // ]
  */
 export function parseScript(rawScript) {
-  console.group('📝 [ScriptParser] parseScript()');
-  console.time('⏱️ parseScript duration');
+  log.group('📝 [ScriptParser] parseScript()');
+  log.time('⏱️ parseScript duration');
 
   if (!rawScript || typeof rawScript !== 'string') {
-    console.warn('⚠️ [ScriptParser] Empty or invalid script input');
-    console.groupEnd();
+    log.warn('⚠️ [ScriptParser] Empty or invalid script input');
+    log.groupEnd();
     return { title: '', totalScenes: 0, scenes: [] };
   }
 
   const lines = rawScript.split('\n');
-  console.log(`📄 [ScriptParser] Input: ${lines.length} lines, ${rawScript.length} chars`);
+  log.debug(`📄 [ScriptParser] Input: ${lines.length} lines, ${rawScript.length} chars`);
 
   const scenes = [];
   let currentScene = null;
@@ -98,7 +100,7 @@ export function parseScript(rawScript) {
 
     // ---- CHECK: Is this an Intro header? ----
     if (INTRO_PATTERN.test(line)) {
-      console.log(`🎬 [ScriptParser] Detected INTRO header`);
+      log.debug(`🎬 [ScriptParser] Detected INTRO header`);
       if (currentScene) {
         scenes.push(finalizeScene(currentScene));
       }
@@ -108,7 +110,7 @@ export function parseScript(rawScript) {
 
     // ---- CHECK: Is this an Outro header? ----
     if (OUTRO_PATTERN.test(line)) {
-      console.log(`🎬 [ScriptParser] Detected OUTRO header`);
+      log.debug(`🎬 [ScriptParser] Detected OUTRO header`);
       if (currentScene) {
         scenes.push(finalizeScene(currentScene));
       }
@@ -121,7 +123,7 @@ export function parseScript(rawScript) {
     if (poseMatch) {
       const poseNumber = parseInt(poseMatch[1], 10);
       const poseName = poseMatch[2].trim();
-      console.log(`🧘 [ScriptParser] Detected POSE #${poseNumber}: "${poseName}"`);
+      log.debug(`🧘 [ScriptParser] Detected POSE #${poseNumber}: "${poseName}"`);
       if (currentScene) {
         scenes.push(finalizeScene(currentScene));
       }
@@ -150,10 +152,10 @@ export function parseScript(rawScript) {
     scenes,
   };
 
-  console.log(`✅ [ScriptParser] Result: ${result.totalScenes} scenes total`);
-  console.table(scenes.map(s => ({ index: s.index, type: s.type, name: s.name, lines: s.lineCount })));
-  console.timeEnd('⏱️ parseScript duration');
-  console.groupEnd();
+  log.debug(`✅ [ScriptParser] Result: ${result.totalScenes} scenes total`);
+  log.table(scenes.map(s => ({ index: s.index, type: s.type, name: s.name, lines: s.lineCount })));
+  log.timeEnd('⏱️ parseScript duration');
+  log.groupEnd();
 
   return result;
 }

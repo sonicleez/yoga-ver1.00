@@ -5,3 +5,10 @@ dist/
 .env
 .env.local
 .vite/
+.vercel/
+Thumbs.db
+desktop.ini
+*.pem
+*.key
+coverage/
+fix_console.ps1
