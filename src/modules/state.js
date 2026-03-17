@@ -17,7 +17,7 @@ const LS_PREFIX = 'yk_';
 const PERSIST_KEYS = [
     'currentStep', 'apiKeys', 'provider', 'imageModel', 'stylePreset',
     'aspectRatio', 'characterDescription', 'environment',
-    'parsedScript', 'framePrompts', 'referenceImages',
+    'parsedScript', 'framePrompts', 'referenceImages', 'envReferenceImages', 'thumbnail'
 ];
 
 const listeners = new Map();
@@ -38,7 +38,9 @@ const state = {
     parsedScript: null,
     framePrompts: [],
     referenceImages: [],  // base64 strings
+    envReferenceImages: [], // base64 strings
     generatedImages: {},  // { sceneIndex: { start: {base64, blobUrl}, end: {base64, blobUrl} } }
+    thumbnail: null,      // base64 string
     isGenerating: false,
 };
 
@@ -204,7 +206,7 @@ export function clearAllState() {
  * but keep settings (API keys, provider, style, aspect ratio).
  */
 export function clearProjectState() {
-    const projectKeys = ['parsedScript', 'framePrompts', 'referenceImages', 'characterDescription', 'environment'];
+    const projectKeys = ['parsedScript', 'framePrompts', 'referenceImages', 'envReferenceImages', 'characterDescription', 'environment', 'thumbnail'];
     for (const key of projectKeys) {
         localStorage.removeItem(LS_PREFIX + key);
     }

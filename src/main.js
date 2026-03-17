@@ -9,6 +9,7 @@ import { generateImage, base64ToBlobUrl, generateSceneImages, PROVIDERS, verifyA
 import { enqueue, enqueueAll, cancelAll, clearAll, isQueueProcessing, setCallbacks, getQueueStatus } from './modules/imageQueue.js';
 import { getState, setState, onStateChange, restoreAllState, clearAllState, clearProjectState, getActiveApiKey, setApiKey } from './modules/state.js';
 import { log } from './modules/logger.js';
+import { initThumbnailStudio, renderThumbnailPoseSelectors } from './modules/thumbnailGenerator.js';
 
 // ============================================================
 // CONSTANTS
@@ -165,6 +166,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initCharacterPanel();
     initPromptPanel();
     initGalleryPanel();
+    initThumbnailStudio();
 
     // 3. Rebuild UI from restored state
     rebuildFromState();
@@ -214,6 +216,7 @@ function rebuildFromState() {
         $('#stat-prompts').textContent = stats.totalScenes * 2;
         $('#scene-count-badge').textContent = `${stats.totalScenes} scenes`;
         $('#btn-to-character').disabled = false;
+        renderThumbnailPoseSelectors();
     }
 
     // Restore frame prompts → rebuild prompt list
@@ -233,8 +236,26 @@ function rebuildFromState() {
 
     // Restore reference image previews
     if (state.referenceImages?.length > 0) {
-        log.info(`  📎 Restoring ${state.referenceImages.length} reference images`);
+        log.info(`  🖼️ Restoring ${state.referenceImages.length} Character references`);
         renderRefPreviews();
+    }
+    if (state.envReferenceImages?.length > 0) {
+        log.info(`  🏞️ Restoring ${state.envReferenceImages.length} Environment references`);
+        renderEnvRefPreviews();
+    }
+
+    // Restore thumbnail
+    if (state.thumbnail) {
+        log.info(`  🎬 Restoring Thumbnail`);
+        const imgPreview = $('#thumbnail-preview-img');
+        const emptyState = $('#thumbnail-empty-state');
+        const btnDownload = $('#btn-download-thumbnail');
+        if (imgPreview && emptyState && btnDownload) {
+            imgPreview.src = `data:image/png;base64,${state.thumbnail}`;
+            imgPreview.style.display = 'block';
+            emptyState.style.display = 'none';
+            btnDownload.style.display = 'inline-flex';
+        }
     }
 
     // Restore step
@@ -527,6 +548,7 @@ function initScriptPanel() {
         // Enable next button
         $('#btn-to-character').disabled = false;
         $('#scene-count-badge').textContent = `${stats.totalScenes} scenes`;
+        renderThumbnailPoseSelectors();
         log.groupEnd();
     });
 }
@@ -575,7 +597,7 @@ function initCharacterPanel() {
         setState('environment', e.target.value);
     });
 
-    // File upload zone
+    // File upload zone - Character
     const uploadZone = $('#upload-zone');
     const fileInput = $('#ref-upload');
 
@@ -594,6 +616,27 @@ function initCharacterPanel() {
     });
     fileInput.addEventListener('change', (e) => {
         handleFiles(e.target.files);
+    });
+
+    // File upload zone - Environment
+    const envUploadZone = $('#env-upload-zone');
+    const envFileInput = $('#env-ref-upload');
+
+    envUploadZone.addEventListener('click', () => envFileInput.click());
+    envUploadZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        envUploadZone.classList.add('dragover');
+    });
+    envUploadZone.addEventListener('dragleave', () => {
+        envUploadZone.classList.remove('dragover');
+    });
+    envUploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        envUploadZone.classList.remove('dragover');
+        handleEnvFiles(e.dataTransfer.files);
+    });
+    envFileInput.addEventListener('change', (e) => {
+        handleEnvFiles(e.target.files);
     });
 
     // Generate prompts button
@@ -641,6 +684,50 @@ function renderRefPreviews() {
             newRefs.splice(i, 1);
             setState('referenceImages', newRefs);
             renderRefPreviews();
+        });
+        container.appendChild(thumb);
+    });
+}
+
+function handleEnvFiles(files) {
+    const state = getState();
+    const refs = [...(state.envReferenceImages || [])];
+
+    for (const file of files) {
+        if (refs.length >= MAX_REFERENCE_IMAGES) {
+            showToast('⚠️ Tối đa 3 ảnh environment reference!', 'error');
+            break;
+        }
+        if (!file.type.startsWith('image/')) continue;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const base64 = e.target.result.split(',')[1];
+            refs.push(base64);
+            setState('envReferenceImages', refs);
+            renderEnvRefPreviews();
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function renderEnvRefPreviews() {
+    const container = $('#env-ref-previews');
+    const refs = getState().envReferenceImages || [];
+    container.innerHTML = '';
+
+    refs.forEach((base64, i) => {
+        const thumb = document.createElement('div');
+        thumb.className = 'ref-thumb';
+        thumb.innerHTML = `
+      <img src="data:image/png;base64,${base64}" alt="Env Ref ${i + 1}">
+      <button class="ref-thumb-remove" data-index="${i}">✕</button>
+    `;
+        thumb.querySelector('.ref-thumb-remove').addEventListener('click', () => {
+            const newRefs = [...(getState().envReferenceImages || [])];
+            newRefs.splice(i, 1);
+            setState('envReferenceImages', newRefs);
+            renderEnvRefPreviews();
         });
         container.appendChild(thumb);
     });
@@ -1056,6 +1143,7 @@ function generateAllImages() {
         model: state.imageModel,
         aspectRatio: state.aspectRatio,
         referenceImages: state.referenceImages,
+        envReferenceImages: state.envReferenceImages,
     });
 }
 
@@ -1100,6 +1188,7 @@ function generateSingleScene(sceneIndex) {
         model: state.imageModel,
         aspectRatio: state.aspectRatio,
         referenceImages: state.referenceImages,
+        envReferenceImages: state.envReferenceImages,
     });
 }
 
@@ -1151,6 +1240,7 @@ function editSceneWithAI(sceneIndex, editPrompt, targetFrame) {
         model: state.imageModel,
         aspectRatio: state.aspectRatio,
         referenceImages: state.referenceImages,
+        envReferenceImages: state.envReferenceImages,
         targetFrame: targetFrame
     };
 
@@ -1210,6 +1300,10 @@ async function downloadAllAsZip() {
         zip.file('state.json', JSON.stringify(exportState));
 
         // 2. Export images physically for user convenience outside app
+        if (state.thumbnail) {
+            zip.file('000_thumbnail.png', state.thumbnail, { base64: true });
+        }
+
         let fileIndex = 1;
         for (const fp of prompts) {
             const imgData = images[fp.sceneIndex];
@@ -1298,7 +1392,7 @@ async function loadZipState(file) {
 // TOAST NOTIFICATIONS
 // ============================================================
 
-function showToast(message, type = 'info') {
+export function showToast(message, type = 'info') {
     const container = $('#toasts');
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;

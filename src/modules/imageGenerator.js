@@ -50,21 +50,30 @@ export const PROVIDERS = {
         keyPrefix: 'vai-',
         keyPlaceholder: 'vai-your-api-key-here',
         models: {
-            'gemini-image-1k': {
-                name: 'Gemini Image Preview 1K',
+            'max/gemini-3.1-image-1k': {
+                name: 'Max Gemini 3.1 Image 1K',
                 resolution: '1408×768',
-                price: '$0.36/req',
+                price: '$0.49/req',
+            },
+            'max/gemini-3.1-image-2k': {
+                name: 'Max Gemini 3.1 Image 2K ⭐',
+                resolution: '2816×1536',
+                price: '$0.65/req',
+            },
+            'max/gemini-3.1-image-4k': {
+                name: 'Max Gemini 3.1 Image 4K',
+                resolution: '5632×3072',
+                price: '$0.81/req',
+            },
+            'max/nano-banana-2-2k': {
+                name: 'Max Nano Banana 2 (2K)',
+                resolution: '2816×1536',
+                price: '$0.81/req',
             },
             'gemini-image-2k': {
-                name: 'Gemini Image Preview 2K ⭐',
+                name: 'Gemini Image Preview 2K (Stnd)',
                 resolution: '2816×1536',
                 price: '$0.45/req',
-                recommended: true,
-            },
-            'gemini-image-4k': {
-                name: 'Gemini Image Preview 4K',
-                resolution: '5632×3072',
-                price: '$0.50/req',
             },
             'gemini-2.5-flash-image': {
                 name: 'Gemini 2.5 Flash Image',
@@ -272,11 +281,16 @@ async function generateImageGoogleAI(prompt, apiKey, options = {}) {
     log.debug(`📡 [GoogleAI] Response status: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        log.error(`❌ [GoogleAI] Error response:`, error);
+        log.error(`❌ [GoogleAI] Error response... parsing error:`);
         log.timeEnd('⏱️ GoogleAI API call');
         log.groupEnd();
-        throw new Error(error?.error?.message || `Google AI error: ${response.status}`);
+        let errorData = {};
+        try {
+            errorData = await response.json();
+        } catch (e) {}
+        
+        const errorMsg = errorData?.error?.message || `Google AI error: HTTP ${response.status} ${response.statusText}`;
+        throw new Error(errorMsg);
     }
 
     const data = await response.json();
@@ -312,48 +326,44 @@ async function generateImageGoogleAI(prompt, apiKey, options = {}) {
 async function generateImageVertexKey(prompt, apiKey, options = {}) {
     const {
         model = 'gemini-image-2k',
+        aspectRatio = '16:9',
         referenceImages = [],
     } = options;
 
     log.group(`🔑 [VertexKey] generateImageVertexKey()`);
-    log.debug(`📋 Model: ${model}`);
+    log.debug(`📋 Model: ${model} | AR: ${aspectRatio}`);
     log.debug(`📋 Key: ${apiKey ? apiKey.substring(0, 10) + '...' : 'MISSING'}`);
     log.time('⏱️ VertexKey API call');
 
     const VERTEX_BASE = VERTEX_KEY_BASE;
 
-    // Build messages — use chat completions (not /images/generations which hangs/502s)
-    const messages = [];
-
-    // Add reference images if provided (for character consistency)
     if (referenceImages.length > 0) {
-        const refContent = [
-            { type: 'text', text: 'Use this character reference for visual consistency in the generated image:' },
-        ];
-        for (const ref of referenceImages) {
-            refContent.push({
-                type: 'image_url',
-                image_url: { url: `data:image/png;base64,${ref}` },
-            });
-        }
-        messages.push({ role: 'user', content: refContent });
-        messages.push({ role: 'assistant', content: 'I will use this character as reference for the generated image.' });
+        log.warn('⚠️ [VertexKey] /images/generations endpoint does not support reference images. Ignoring them for this generation.');
     }
 
-    // Main image prompt
-    messages.push({
-        role: 'user',
-        content: `Generate an image: ${prompt}`,
-    });
+    // Determine size string mapped from aspect ratio and model capability
+    let sizeStr = "1024x1024"; // 1:1 default fallback
+    const is4k = model.includes('4k');
+    const is2k = model.includes('2k') || model.includes('banana-2-2k');
+    const is1k = model.includes('1k');
+
+    if (aspectRatio === '16:9') {
+        sizeStr = is4k ? "5632x3072" : is2k ? "2816x1536" : is1k ? "1408x768" : "1792x1024";
+    } else if (aspectRatio === '9:16') {
+        sizeStr = is4k ? "3072x5632" : is2k ? "1536x2816" : is1k ? "768x1408" : "1024x1792";
+    } else if (aspectRatio === '1:1') {
+        sizeStr = is4k ? "4096x4096" : is2k ? "2048x2048" : is1k ? "1024x1024" : "1024x1024";
+    }
 
     const body = {
         model,
-        messages,
-        max_tokens: 4096,
+        prompt: prompt,
+        n: 1,
+        size: sizeStr
     };
 
-    const url = `${VERTEX_BASE}/chat/completions`;
-    log.debug(`🔗 [VertexKey] URL: ${url} (chat completions endpoint)`);
+    const url = `${VERTEX_BASE}/images/generations`;
+    log.debug(`🔗 [VertexKey] URL: ${url} (images/generations endpoint)`);
 
     const response = await fetch(url, {
         method: 'POST',
@@ -376,10 +386,13 @@ async function generateImageVertexKey(prompt, apiKey, options = {}) {
 
     const data = await response.json();
     const text = data.choices?.[0]?.message?.content || '';
-    log.debug(`📦 [VertexKey] Response text (${text.length} chars): "${text.substring(0, 150)}..."`);
+    if (typeof text === 'string' && text.length > 0) {
+        log.debug(`📦 [VertexKey] Response text (${text.length} chars): "${text.substring(0, 150)}..."`);
+    }
 
     // Method 1: Gemini image models return markdown image URLs like ![...](https://...)
-    const imageUrlMatch = text.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/);
+    // Also protect against `text` being undefined or not a string if response is pure OpenAI format
+    const imageUrlMatch = typeof text === 'string' ? text.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/) : null;
     if (imageUrlMatch) {
         const imageUrl = imageUrlMatch[1];
         log.debug(`🔗 [VertexKey] Found markdown image URL: ${imageUrl.substring(0, 80)}...`);
@@ -400,7 +413,7 @@ async function generateImageVertexKey(prompt, apiKey, options = {}) {
     }
 
     // Method 2: Check for bare URL (no markdown format)
-    const bareUrlMatch = text.match(/(https?:\/\/[^\s"'<>]+\.(?:png|jpg|jpeg|webp|gif)[^\s"'<>]*)/i);
+    const bareUrlMatch = typeof text === 'string' ? text.match(/(https?:\/\/[^\s"'<>]+\.(?:png|jpg|jpeg|webp|gif)[^\s"'<>]*)/i) : null;
     if (bareUrlMatch) {
         const imageUrl = bareUrlMatch[1];
         log.debug(`🔗 [VertexKey] Found bare image URL: ${imageUrl.substring(0, 80)}...`);
@@ -420,7 +433,7 @@ async function generateImageVertexKey(prompt, apiKey, options = {}) {
     }
 
     // Method 3: Check for inline base64 data
-    const base64Match = text.match(/data:image\/[^;]+;base64,([A-Za-z0-9+/=]+)/);
+    const base64Match = typeof text === 'string' ? text.match(/data:image\/[^;]+;base64,([A-Za-z0-9+/=]+)/) : null;
     if (base64Match) {
         const base64 = base64Match[1];
         log.debug(`✅ [VertexKey] Found inline base64: ${Math.round(base64.length / 1024)}KB`);
@@ -439,15 +452,35 @@ async function generateImageVertexKey(prompt, apiKey, options = {}) {
     }
     if (data.data?.[0]?.url) {
         const imageUrl = data.data[0].url;
-        log.timeEnd('⏱️ VertexKey API call');
-        log.groupEnd();
-        return { base64: null, blobUrl: imageUrl, imageUrl };
+        log.debug(`🔗 [VertexKey] Found direct image URL: ${imageUrl.substring(0, 80)}...`);
+        try {
+            const imgRes = await fetch(imageUrl);
+            const imgBlob = await imgRes.blob();
+            const base64 = await blobToBase64(imgBlob);
+            log.debug(`✅ [VertexKey] Downloaded OpenAI URL: ${Math.round(base64.length / 1024)}KB`);
+            log.timeEnd('⏱️ VertexKey API call');
+            log.groupEnd();
+            return { base64, blobUrl: URL.createObjectURL(imgBlob), imageUrl };
+        } catch (dlErr) {
+            log.warn(`⚠️ [VertexKey] Download failed, using URL directly:`, dlErr.message);
+            log.timeEnd('⏱️ VertexKey API call');
+            log.groupEnd();
+            return { base64: null, blobUrl: imageUrl, imageUrl };
+        }
     }
 
-    log.error('❌ [VertexKey] No image found. Full response:', text.substring(0, 300));
+    log.error('❌ [VertexKey] No image found. Full data:', data);
+    let errMsg = `No image in response.`;
+    if (data.error) {
+        errMsg += ` Error: ${data.error.message || JSON.stringify(data.error)}`;
+    } else if (data.choices?.[0]?.finish_reason) {
+        errMsg += ` Finish reason: ${data.choices[0].finish_reason}`;
+    } else if (data.message) {
+        errMsg += ` Message: ${data.message}`;
+    }
     log.timeEnd('⏱️ VertexKey API call');
     log.groupEnd();
-    throw new Error(`No image in response. Model returned: ${text.substring(0, 150)}`);
+    throw new Error(errMsg);
 }
 
 // ============================================================
@@ -756,6 +789,11 @@ export async function generateSceneImages(framePrompt, apiKey, options = {}) {
         log.debug(`📎[SceneImages] Using CUSTOM reference image for this scene`);
     }
 
+    if (options.envReferenceImages && options.envReferenceImages.length > 0) {
+        effectiveOptions.referenceImages = [...(effectiveOptions.referenceImages || []), ...options.envReferenceImages];
+        log.debug(`🏞️[SceneImages] Attached ${options.envReferenceImages.length} environment reference images`);
+    }
+
     if (!effectiveOptions.targetFrame || effectiveOptions.targetFrame === 'start') {
         // 1. Generate start frame using original character image from options
         log.debug(`🟢[SceneImages] Generating START frame...`);
@@ -784,7 +822,10 @@ export async function generateSceneImages(framePrompt, apiKey, options = {}) {
         } else {
             if (startResult?.base64) {
                 endOptions.referenceImages = [startResult.base64];
-                log.debug(`📎[SceneImages] Using START frame as reference for END frame(${Math.round(startResult.base64.length / 1024)}KB)`);
+                if (options.envReferenceImages && options.envReferenceImages.length > 0) {
+                    endOptions.referenceImages.push(...options.envReferenceImages);
+                }
+                log.debug(`📎[SceneImages] Using START frame + ENV as reference for END frame(${endOptions.referenceImages.length} refs total)`);
             } else {
                 endOptions.referenceImages = [];
                 log.warn(`⚠️[SceneImages] No base64 from START frame, END frame has no reference`);
