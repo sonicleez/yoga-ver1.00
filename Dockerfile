@@ -23,8 +23,8 @@ COPY --from=build-stage /app/dist /usr/share/nginx/html
 # Overwrite the default NGINX configuration to properly handle single-page apps (SPA)
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Expose port 80
-EXPOSE 80
+# Expose port 80 and 3000
+EXPOSE 80 3000
 
 # Run NGINX in foreground
 CMD ["nginx", "-g", "daemon off;"]
