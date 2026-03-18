@@ -10,6 +10,7 @@ import { enqueue, enqueueAll, cancelAll, clearAll, isQueueProcessing, setCallbac
 import { getState, setState, onStateChange, restoreAllState, clearAllState, clearProjectState, getActiveApiKey, setApiKey } from './modules/state.js';
 import { log } from './modules/logger.js';
 import { initThumbnailStudio, renderThumbnailPoseSelectors } from './modules/thumbnailGenerator.js';
+import { supabase } from './modules/supabaseClient.js';
 
 // ============================================================
 // CONSTANTS
@@ -146,6 +147,35 @@ const $$ = (sel) => document.querySelectorAll(sel);
 document.addEventListener('DOMContentLoaded', async () => {
     log.group('🚀 [App] DOMContentLoaded — Initializing YogaKids');
 
+    // ============================================================
+    // AUTH LOGIC (Supabase)
+    // ============================================================
+    initAuthUI();
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+        document.getElementById('auth-overlay').style.display = 'flex';
+    } else {
+        document.getElementById('auth-overlay').style.display = 'none';
+        initApp();
+    }
+
+    supabase.auth.onAuthStateChange((_event, session) => {
+        if (!session) {
+            document.getElementById('auth-overlay').style.display = 'flex';
+        } else {
+            document.getElementById('auth-overlay').style.display = 'none';
+            // Start app if not yet
+            if(window._appInitialized) return;
+            initApp();
+        }
+    });
+});
+
+async function initApp() {
+    if (window._appInitialized) return;
+    window._appInitialized = true;
+    
     // Image modal close handlers
     $('#image-modal-close')?.addEventListener('click', () => {
         $('#image-modal').style.display = 'none';
@@ -174,7 +204,77 @@ document.addEventListener('DOMContentLoaded', async () => {
     log.info('✅ [App] All modules initialized');
     log.groupEnd();
     showToast('🧘 YogaKids ready!', 'info');
-});
+}
+
+/**
+ * Khởi tạo UI Đăng nhập/Đăng ký
+ */
+function initAuthUI() {
+    const btnLogin = document.getElementById('auth-tab-login');
+    const btnRegister = document.getElementById('auth-tab-register');
+    const form = document.getElementById('auth-form');
+    const emailInput = document.getElementById('auth-email');
+    const pwdInput = document.getElementById('auth-password');
+    const errorMsg = document.getElementById('auth-error');
+    const submitBtn = document.getElementById('auth-submit-btn');
+    const btnLogout = document.getElementById('btn-logout');
+
+    let mode = 'login'; // login | register
+
+    // Switch tabs
+    btnLogin.addEventListener('click', () => {
+        mode = 'login';
+        btnLogin.classList.add('active');
+        btnRegister.classList.remove('active');
+        submitBtn.textContent = 'Đăng Nhập';
+        errorMsg.style.display = 'none';
+    });
+    btnRegister.addEventListener('click', () => {
+        mode = 'register';
+        btnRegister.classList.add('active');
+        btnLogin.classList.remove('active');
+        submitBtn.textContent = 'Đăng Ký';
+        errorMsg.style.display = 'none';
+    });
+
+    // Form Submit
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = emailInput.value.trim();
+        const password = pwdInput.value;
+        errorMsg.style.display = 'none';
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Đang xử lý...';
+
+        if (mode === 'login') {
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) {
+                errorMsg.textContent = 'Lỗi: ' + error.message;
+                errorMsg.style.display = 'block';
+            }
+        } else {
+            const { error } = await supabase.auth.signUp({ email, password });
+            if (error) {
+                errorMsg.textContent = 'Lỗi: ' + error.message;
+                errorMsg.style.display = 'block';
+            } else {
+                errorMsg.textContent = 'Đăng ký thành công! Hãy kiểm tra Email nếu có yêu cầu xác thực, hoặc tự động đăng nhập...';
+                errorMsg.style.color = '#10b981'; // green
+                errorMsg.style.display = 'block';
+                // Switch back to login normally, but Supabase logs in user automatically if no email verification
+            }
+        }
+
+        submitBtn.disabled = false;
+        submitBtn.textContent = mode === 'login' ? 'Đăng Nhập' : 'Đăng Ký';
+    });
+
+    // Logout
+    btnLogout?.addEventListener('click', async () => {
+        await supabase.auth.signOut();
+        window.location.reload();
+    });
+}
 
 /**
  * Rebuild the entire UI from persisted state after a page refresh.

@@ -21,6 +21,32 @@
         <div class="ambient-glow"></div>
         <div class="ambient-glow-2"></div>
 
+        <!-- AUTH OVERLAY -->
+        <div id="auth-overlay" class="auth-overlay" style="display: none;">
+            <div class="auth-card glass-card">
+                <div class="auth-brand">
+                    <span class="brand-icon">🧘</span>
+                    <h1 class="brand-name">YogaKids</h1>
+                </div>
+                <div class="auth-tabs">
+                    <button id="auth-tab-login" class="auth-tab active">Đăng Nhập</button>
+                    <button id="auth-tab-register" class="auth-tab">Đăng Ký</button>
+                </div>
+                <form id="auth-form">
+                    <div style="margin-bottom: var(--space-md);">
+                        <label class="label">Email</label>
+                        <input type="email" id="auth-email" class="input" required placeholder="name@example.com">
+                    </div>
+                    <div style="margin-bottom: var(--space-md);">
+                        <label class="label">Mật khẩu</label>
+                        <input type="password" id="auth-password" class="input" required minlength="6" placeholder="••••••••">
+                    </div>
+                    <div id="auth-error" style="color: var(--accent-danger); font-size: 14px; margin-bottom: 10px; display: none;"></div>
+                    <button type="submit" id="auth-submit-btn" class="btn btn-primary" style="width: 100%;">Gửi</button>
+                </form>
+            </div>
+        </div>
+
         <!-- SIDEBAR -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-brand">
@@ -62,7 +88,7 @@
             </nav>
 
             <div class="sidebar-footer">
-                <div class="sidebar-stats" id="sidebar-stats">
+                <div class="sidebar-stats" id="sidebar-stats" style="margin-bottom: 10px;">
                     <div class="stat-item">
                         <span class="stat-value" id="stat-scenes">0</span>
                         <span class="stat-label">Scenes</span>
@@ -76,6 +102,9 @@
                         <span class="stat-label">Images</span>
                     </div>
                 </div>
+                <button class="btn btn-outline" id="btn-logout" style="width: 100%; border-color: var(--accent-danger); color: var(--accent-danger);">
+                    🚪 Đăng xuất
+                </button>
             </div>
         </aside>
 

@@ -1497,3 +1497,77 @@ body {
   text-decoration: none;
   cursor: pointer;
 }
+
+/* ============================================================
+   AUTH OVERLAY UI
+   ============================================================ */
+.auth-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(10, 10, 26, 0.95);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  padding: var(--space-xl);
+  animation: modal-in var(--transition-normal);
+}
+
+.auth-brand {
+  text-align: center;
+  margin-bottom: var(--space-lg);
+}
+
+.auth-brand .brand-icon {
+  font-size: 48px;
+  display: block;
+  margin-bottom: var(--space-sm);
+}
+
+.auth-brand .brand-name {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.auth-tabs {
+  display: flex;
+  margin-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.auth-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: var(--space-sm) 0;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.auth-tab.active {
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--accent-primary);
+}
+
+.auth-tab:hover:not(.active) {
+  color: var(--text-primary);
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
