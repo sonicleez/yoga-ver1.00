@@ -47,6 +47,23 @@
             </div>
         </div>
 
+        <!-- PENDING OVERLAY -->
+        <div id="pending-overlay" class="auth-overlay" style="display: none;">
+            <div class="auth-card glass-card" style="text-align: center;">
+                <div class="auth-brand">
+                    <span class="brand-icon">⛔</span>
+                    <h1 class="brand-name">Tài khoản chưa kích hoạt</h1>
+                </div>
+                <p style="color: var(--text-secondary); line-height: 1.5; margin-bottom: 20px;">
+                    Tài khoản của bạn hiện tại chưa được cấp quyền sử dụng ứng dụng.<br><br>
+                    Vui lòng liên hệ Admin qua Telegram <a href="https://t.me/mrsonic30" target="_blank" style="color: var(--accent-primary); font-weight: bold; text-decoration: none;">@mrsonic30</a> để kích hoạt!
+                </p>
+                <button id="btn-pending-logout" class="btn btn-outline" style="width: 100%; border-color: var(--accent-danger); color: var(--accent-danger);">
+                    🚪 Đăng xuất
+                </button>
+            </div>
+        </div>
+
         <!-- SIDEBAR -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-brand">
@@ -84,6 +101,11 @@
                     <span class="step-num">6</span>
                     <span class="step-icon">🍿</span>
                     <span class="step-label">Thumbnail</span>
+                </button>
+                <button class="nav-step" data-step="6" id="nav-btn-admin" style="display: none;">
+                    <span class="step-num">★</span>
+                    <span class="step-icon">👑</span>
+                    <span class="step-label">Admin Panel</span>
                 </button>
             </nav>
 
@@ -505,6 +527,34 @@
                     <div class="panel-footer">
                         <button class="btn btn-outline" data-prev="4">← Gallery</button>
                         <div></div>
+                    </div>
+                </section>
+
+                <!-- STEP 6: Admin Panel -->
+                <section class="step-panel" data-panel="6" id="panel-admin">
+                    <div class="panel-header">
+                        <h2 class="panel-title">👑 Admin / Quản trị User</h2>
+                        <p class="panel-desc">Phê duyệt kích hoạt cho thành viên mới (Chỉ dành cho Admin)</p>
+                    </div>
+                    <div class="panel-body">
+                        <div class="glass-card">
+                            <h3 class="card-title">Danh sách Người dùng</h3>
+                            <div style="margin-top: 15px; overflow-x: auto;">
+                                <table style="width: 100%; text-align: left; border-collapse: collapse;">
+                                    <thead>
+                                        <tr style="border-bottom: 1px solid var(--glass-border);">
+                                            <th style="padding: 10px;">Email</th>
+                                            <th style="padding: 10px;">Ngày Đăng Ký</th>
+                                            <th style="padding: 10px;">Trạng thái</th>
+                                            <th style="padding: 10px;">Hành động</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="admin-users-list">
+                                        <!-- Rendered by JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </section>
 

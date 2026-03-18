@@ -155,22 +155,61 @@ document.addEventListener('DOMContentLoaded', async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
         document.getElementById('auth-overlay').style.display = 'flex';
+        document.getElementById('pending-overlay').style.display = 'none';
     } else {
         document.getElementById('auth-overlay').style.display = 'none';
-        initApp();
+        checkAccessAndInit(session);
     }
 
     supabase.auth.onAuthStateChange((_event, session) => {
         if (!session) {
             document.getElementById('auth-overlay').style.display = 'flex';
+            document.getElementById('pending-overlay').style.display = 'none';
+            // Optional: reset app state or refresh if logged out
         } else {
             document.getElementById('auth-overlay').style.display = 'none';
-            // Start app if not yet
-            if(window._appInitialized) return;
-            initApp();
+            checkAccessAndInit(session);
         }
     });
 });
+
+// Hardcoded admin emails — always bypass pending check
+const ADMIN_EMAILS = ['xvirion@gmail.com'];
+
+async function checkAccessAndInit(session) {
+    if(!session) return;
+    
+    const userEmail = (session.user.email || '').toLowerCase();
+    const isHardcodedAdmin = ADMIN_EMAILS.includes(userEmail);
+    
+    // Try to fetch profile from DB
+    let profile = null;
+    try {
+        const { data, error } = await supabase.from('profiles').select('role, is_active').eq('id', session.user.id).single();
+        if (!error) profile = data;
+    } catch(e) {
+        console.warn('[Auth] Could not fetch profile, falling back to email check', e);
+    }
+    
+    // Admin by email OR by DB role → always allow
+    const isAdmin = isHardcodedAdmin || (profile && profile.role === 'admin');
+    const isActive = isAdmin || (profile && profile.is_active);
+    
+    if (isActive) {
+        document.getElementById('pending-overlay').style.display = 'none';
+        
+        if (isAdmin) {
+            const adminNav = document.getElementById('nav-btn-admin');
+            if (adminNav) adminNav.style.display = '';
+            initAdminPanel();
+        }
+        
+        initApp();
+    } else {
+        // Show pending
+        document.getElementById('pending-overlay').style.display = 'flex';
+    }
+}
 
 async function initApp() {
     if (window._appInitialized) return;
@@ -190,6 +229,7 @@ async function initApp() {
     await restoreAllState();
 
     // 2. Init UI modules (they read from restored state)
+    initAuthUI();
     initSettings();
     initNavigation();
     initScriptPanel();
@@ -269,10 +309,141 @@ function initAuthUI() {
         submitBtn.textContent = mode === 'login' ? 'Đăng Nhập' : 'Đăng Ký';
     });
 
-    // Logout
+    // Logout buttons
     btnLogout?.addEventListener('click', async () => {
         await supabase.auth.signOut();
         window.location.reload();
+    });
+
+    const pendingLogoutBtn = document.getElementById('btn-pending-logout');
+    if (pendingLogoutBtn) {
+        pendingLogoutBtn.addEventListener('click', async () => {
+            await supabase.auth.signOut();
+            window.location.reload();
+        });
+    }
+}
+
+/**
+ * Khởi tạo tính năng Admin Panel
+ */
+function initAdminPanel() {
+    if (window._adminInitialized) return;
+    window._adminInitialized = true;
+
+    // Load user list
+    const adminNav = document.getElementById('nav-btn-admin');
+    if(adminNav) {
+        adminNav.addEventListener('click', () => {
+            loadAdminUsers();
+        });
+    }
+}
+
+async function loadAdminUsers() {
+    const listEl = document.getElementById('admin-users-list');
+    if(!listEl) return;
+    
+    listEl.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 20px;">Đang tải...</td></tr>';
+    
+    const { data: users, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+        
+    if (error) {
+        listEl.innerHTML = `<tr><td colspan="4" style="text-align:center; color: red;">Lỗi: ${error.message}</td></tr>`;
+        return;
+    }
+
+    if (!document.getElementById('admin-style')) {
+        const style = document.createElement('style');
+        style.id = 'admin-style';
+        style.innerHTML = `
+            .toggle-active-btn {
+                background: transparent;
+                border: 1px solid var(--glass-border);
+                color: var(--text-primary);
+                padding: 4px 8px;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+            .toggle-active-btn.activated {
+                border-color: var(--accent-success);
+                color: var(--accent-success);
+            }
+            .toggle-active-btn.deactivated {
+                border-color: var(--accent-danger);
+                color: var(--accent-danger);
+            }
+            .toggle-active-btn:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    listEl.innerHTML = '';
+    
+    users.forEach(u => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+        
+        const dateStr = new Date(u.created_at).toLocaleString('vi-VN');
+        
+        const statusSpan = u.is_active 
+            ? '<span style="color: var(--accent-success); font-weight: bold;">Đã duyệt</span>' 
+            : '<span style="color: var(--accent-danger);">Chờ duyệt</span>';
+            
+        const actionBtn = u.role === 'admin' ? '<span style="color: #666;">Admin</span>' : `
+            <button class="toggle-active-btn ${u.is_active ? 'activated' : 'deactivated'}" data-id="${u.id}" data-active="${u.is_active}">
+                ${u.is_active ? '✅ Tắt quyền' : '🔒 Bật quyền'}
+            </button>
+        `;
+        
+        tr.innerHTML = `
+            <td style="padding: 12px 10px;">${escapeHtml(u.email || u.id)}</td>
+            <td style="padding: 12px 10px;">${dateStr}</td>
+            <td style="padding: 12px 10px;" id="status-${u.id}">${statusSpan}</td>
+            <td style="padding: 12px 10px;" id="action-${u.id}">${actionBtn}</td>
+        `;
+        listEl.appendChild(tr);
+    });
+    
+    // Bind buttons
+    const btns = listEl.querySelectorAll('.toggle-active-btn');
+    btns.forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const id = e.target.getAttribute('data-id');
+            const currentActive = e.target.getAttribute('data-active') === 'true';
+            const newActive = !currentActive;
+            
+            e.target.disabled = true;
+            e.target.textContent = '...';
+            
+            const { error: updErr } = await supabase
+                .from('profiles')
+                .update({ is_active: newActive })
+                .eq('id', id);
+                
+            if(updErr) {
+                alert('Lỗi: ' + updErr.message);
+                e.target.disabled = false;
+                e.target.textContent = currentActive ? '✅ Tắt quyền' : '🔒 Bật quyền';
+            } else {
+                // Refresh local view implicitly
+                const statusTd = document.getElementById('status-' + id);
+                statusTd.innerHTML = newActive 
+                    ? '<span style="color: var(--accent-success); font-weight: bold;">Đã duyệt</span>' 
+                    : '<span style="color: var(--accent-danger);">Chờ duyệt</span>';
+                    
+                e.target.setAttribute('data-active', newActive);
+                e.target.className = 'toggle-active-btn ' + (newActive ? 'activated' : 'deactivated');
+                e.target.textContent = newActive ? '✅ Tắt quyền' : '🔒 Bật quyền';
+                e.target.disabled = false;
+            }
+        });
     });
 }
 
