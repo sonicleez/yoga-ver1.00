@@ -72,37 +72,42 @@
             </div>
 
             <nav class="sidebar-nav" id="step-nav">
-                <button class="nav-step active" data-step="0">
+                <button class="nav-step active" data-step="7" id="nav-btn-script-gen">
                     <span class="step-num">1</span>
+                    <span class="step-icon">✍️</span>
+                    <span class="step-label">Script Gen</span>
+                </button>
+                <button class="nav-step" data-step="0">
+                    <span class="step-num">2</span>
                     <span class="step-icon">⚙️</span>
                     <span class="step-label">Settings</span>
                 </button>
                 <button class="nav-step" data-step="1">
-                    <span class="step-num">2</span>
+                    <span class="step-num">3</span>
                     <span class="step-icon">📝</span>
                     <span class="step-label">Script</span>
                 </button>
                 <button class="nav-step" data-step="2">
-                    <span class="step-num">3</span>
+                    <span class="step-num">4</span>
                     <span class="step-icon">👤</span>
                     <span class="step-label">Character</span>
                 </button>
                 <button class="nav-step" data-step="3">
-                    <span class="step-num">4</span>
+                    <span class="step-num">5</span>
                     <span class="step-icon">🎨</span>
                     <span class="step-label">Prompts</span>
                 </button>
                 <button class="nav-step" data-step="4">
-                    <span class="step-num">5</span>
+                    <span class="step-num">6</span>
                     <span class="step-icon">🖼️</span>
                     <span class="step-label">Gallery</span>
                 </button>
                 <button class="nav-step" data-step="5">
-                    <span class="step-num">6</span>
+                    <span class="step-num">7</span>
                     <span class="step-icon">🍿</span>
                     <span class="step-label">Thumbnail</span>
                 </button>
-                <button class="nav-step" data-step="6" id="nav-btn-admin" style="display: none;">
+                <button class="nav-step" data-step="8" id="nav-btn-admin" style="display: none;">
                     <span class="step-num">★</span>
                     <span class="step-icon">👑</span>
                     <span class="step-label">Admin Panel</span>
@@ -530,8 +535,415 @@
                     </div>
                 </section>
 
-                <!-- STEP 6: Admin Panel -->
-                <section class="step-panel" data-panel="6" id="panel-admin">
+                <!-- STEP 7: Script Generator -->
+                <section class="step-panel" data-panel="7" id="panel-script-gen">
+                    <div class="panel-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div>
+                            <h2 class="panel-title">✍️ Script Generator</h2>
+                            <p class="panel-desc">Tự động tạo kịch bản yoga chất lượng cao với AI</p>
+                        </div>
+                        <button class="btn btn-outline" id="btn-sg-history">
+                            💾 History & Templates
+                        </button>
+                    </div>
+
+                    <!-- Gamification Stats Bar -->
+                    <div class="sg-gamification-bar" id="sg-gamification-bar">
+                        <div class="sg-xp-section">
+                            <span class="sg-level-badge" id="sg-level-badge">🌱 Lv.1</span>
+                            <div class="sg-xp-bar">
+                                <div class="sg-xp-fill" id="sg-xp-fill" style="width: 0%"></div>
+                            </div>
+                            <span class="sg-xp-text" id="sg-xp-text">0 XP</span>
+                        </div>
+                        <div class="sg-stats-mini">
+                            <span title="Scripts Generated" id="sg-stat-scripts">📝 0</span>
+                            <span title="Daily Streak" id="sg-stat-streak">🔥 0</span>
+                            <span title="Achievements" id="sg-stat-achievements">🏆 0</span>
+                        </div>
+                    </div>
+
+                    <!-- Achievement Toast (hidden, shown on unlock) -->
+                    <div class="sg-achievement-toast" id="sg-achievement-toast" style="display: none;">
+                        <span class="sg-achievement-icon" id="sg-achievement-icon">🎉</span>
+                        <div>
+                            <div class="sg-achievement-title" id="sg-achievement-title">Achievement!</div>
+                            <div class="sg-achievement-desc" id="sg-achievement-desc">—</div>
+                        </div>
+                        <span class="sg-achievement-xp" id="sg-achievement-xp">+10 XP</span>
+                    </div>
+                    <div class="panel-body panel-split">
+                        <!-- LEFT: Configuration -->
+                        <div class="split-left" style="overflow-y: auto;">
+
+
+                            <!-- Quick Preset Buttons -->
+                            <div class="sg-section">
+                                <div id="sg-presets" class="sg-preset-row"></div>
+                            </div>
+
+                            <!-- Mode Selector -->
+                            <div class="sg-section">
+                                <div class="sg-mode-selector">
+                                    <label class="sg-mode-radio">
+                                        <input type="radio" name="sg-mode" value="single" checked>
+                                        <span class="sg-mode-label">📝 Single</span>
+                                    </label>
+                                    <label class="sg-mode-radio">
+                                        <input type="radio" name="sg-mode" value="series">
+                                        <span class="sg-mode-label">🎬 Series</span>
+                                    </label>
+                                    <label class="sg-mode-radio">
+                                        <input type="radio" name="sg-mode" value="playlist">
+                                        <span class="sg-mode-label">🎵 Playlist</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Series Config (hidden by default) -->
+                            <div class="sg-section sg-mode-panel" id="sg-series-config" style="display: none;">
+                                <div class="sg-section-title">🎬 Series Config</div>
+                                <div class="sg-compact-grid sg-grid-2">
+                                    <div class="sg-field">
+                                        <label class="sg-label">Preset</label>
+                                        <select id="sg-series-preset" class="sg-select">
+                                            <option value="">Custom</option>
+                                        </select>
+                                    </div>
+                                    <div class="sg-field">
+                                        <label class="sg-label">Total Scripts</label>
+                                        <select id="sg-series-total" class="sg-select">
+                                            <option value="3">3 scripts</option>
+                                            <option value="5">5 scripts</option>
+                                            <option value="7" selected>7 scripts</option>
+                                            <option value="14">14 scripts</option>
+                                            <option value="30">30 scripts</option>
+                                        </select>
+                                    </div>
+                                    <div class="sg-field">
+                                        <label class="sg-label">Progression</label>
+                                        <select id="sg-series-progression" class="sg-select">
+                                            <option value="gradual">📈 Gradual</option>
+                                            <option value="wave">🌊 Wave</option>
+                                            <option value="thematic">🎯 Thematic</option>
+                                        </select>
+                                    </div>
+                                    <div class="sg-field">
+                                        <label class="sg-label">Series Title</label>
+                                        <input type="text" id="sg-series-title" class="sg-input" placeholder="e.g. 7-Day Yoga Challenge">
+                                    </div>
+                                </div>
+                                <div id="sg-series-presets-list" class="sg-preset-row" style="margin-top: 6px;"></div>
+                            </div>
+
+                            <!-- Playlist Config (hidden by default) -->
+                            <div class="sg-section sg-mode-panel" id="sg-playlist-config" style="display: none;">
+                                <div class="sg-section-title">🎵 Playlist Config</div>
+                                <div class="sg-compact-grid sg-grid-2">
+                                    <div class="sg-field">
+                                        <label class="sg-label">Theme</label>
+                                        <select id="sg-playlist-theme" class="sg-select">
+                                            <option value="">Custom</option>
+                                        </select>
+                                    </div>
+                                    <div class="sg-field">
+                                        <label class="sg-label">Total Scripts</label>
+                                        <select id="sg-playlist-total" class="sg-select">
+                                            <option value="3">3 scripts</option>
+                                            <option value="5" selected>5 scripts</option>
+                                            <option value="10">10 scripts</option>
+                                            <option value="15">15 scripts</option>
+                                            <option value="20">20 scripts</option>
+                                        </select>
+                                    </div>
+                                    <div class="sg-field">
+                                        <label class="sg-label">Variety</label>
+                                        <select id="sg-playlist-variety" class="sg-select">
+                                            <option value="low">Low</option>
+                                            <option value="medium" selected>Medium</option>
+                                            <option value="high">High</option>
+                                        </select>
+                                    </div>
+                                    <div class="sg-field">
+                                        <label class="sg-label">Playlist Title</label>
+                                        <input type="text" id="sg-playlist-title" class="sg-input" placeholder="e.g. Bedtime Collection">
+                                    </div>
+                                </div>
+                                <div id="sg-playlist-themes-list" class="sg-preset-row" style="margin-top: 6px;"></div>
+                            </div>
+
+                            <!-- Skill Packs (collapsible) -->
+                            <details class="sg-collapsible">
+                                <summary class="sg-section-title">🏆 Skill Packs <span class="badge" id="sg-packs-badge" style="font-size: 9px;">0</span></summary>
+                                <div id="sg-skill-packs" class="sg-skill-packs-grid"></div>
+                            </details>
+
+                            <!-- Core Config — Always visible, compact -->
+                            <div class="sg-section">
+                                <div class="sg-section-title">⚙️ Core</div>
+                                <div class="sg-compact-grid sg-grid-3">
+                                    <div class="sg-field">
+                                        <label class="sg-label">Category</label>
+                                        <select id="sg-category" class="sg-select">
+                                            <option value="bedtime">🌙 Bedtime</option>
+                                            <option value="morning">☀️ Morning</option>
+                                            <option value="kids">👶 Kids</option>
+                                            <option value="meditation">🧘 Meditation</option>
+                                            <option value="power">💪 Power</option>
+                                            <option value="senior">👴 Senior</option>
+                                            <option value="office">🪑 Office</option>
+                                            <option value="prenatal">🤰 Prenatal</option>
+                                            <option value="yin">🌿 Yin</option>
+                                            <option value="recovery">🏃 Recovery</option>
+                                            <option value="vinyasa">🔥 Vinyasa</option>
+                                            <option value="hatha">🧘‍♀️ Hatha</option>
+                                            <option value="family">👨‍👩‍👧 Family</option>
+                                        </select>
+                                    </div>
+                                    <div class="sg-field">
+                                        <label class="sg-label">Language</label>
+                                        <select id="sg-language" class="sg-select"></select>
+                                    </div>
+                                    <div class="sg-field">
+                                        <label class="sg-label">Level</label>
+                                        <select id="sg-level" class="sg-select">
+                                            <option value="beginner">Beginner</option>
+                                            <option value="intermediate">Intermediate</option>
+                                            <option value="advanced">Advanced</option>
+                                        </select>
+                                    </div>
+                                    <div class="sg-field">
+                                        <label class="sg-label">Audience</label>
+                                        <select id="sg-audience" class="sg-select">
+                                            <option value="adults">Adults</option>
+                                            <option value="kids">Kids (3-10)</option>
+                                            <option value="teens">Teens</option>
+                                            <option value="seniors">Seniors (60+)</option>
+                                            <option value="pregnant">Pregnant</option>
+                                            <option value="athletes">Athletes</option>
+                                            <option value="beginners">Beginners</option>
+                                            <option value="office-workers">Office Workers</option>
+                                        </select>
+                                    </div>
+                                    <div class="sg-field">
+                                        <label class="sg-label">Duration</label>
+                                        <select id="sg-duration" class="sg-select">
+                                            <option value="5">5 min</option>
+                                            <option value="10">10 min</option>
+                                            <option value="15" selected>15 min</option>
+                                            <option value="20">20 min</option>
+                                            <option value="30">30 min</option>
+                                            <option value="45">45 min</option>
+                                            <option value="60">60 min</option>
+                                        </select>
+                                    </div>
+                                    <div class="sg-field">
+                                        <label class="sg-label">Poses</label>
+                                        <select id="sg-pose-count" class="sg-select">
+                                            <option value="0">Auto</option>
+                                            <option value="5">5</option>
+                                            <option value="8">8</option>
+                                            <option value="10">10</option>
+                                            <option value="12" selected>12</option>
+                                            <option value="15">15</option>
+                                            <option value="20">20</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Style & Flow — Collapsible -->
+                            <details class="sg-details">
+                                <summary class="sg-summary">🎨 Style & Flow</summary>
+                                <div class="sg-compact-grid sg-grid-3">
+                                    <div class="sg-field">
+                                        <label class="sg-label">Narration</label>
+                                        <select id="sg-narration" class="sg-select">
+                                            <option value="minimal">Minimal</option>
+                                            <option value="short" selected>Short</option>
+                                            <option value="detailed">Detailed</option>
+                                            <option value="poetic">Poetic</option>
+                                        </select>
+                                    </div>
+                                    <div class="sg-field">
+                                        <label class="sg-label">Flow</label>
+                                        <select id="sg-flow" class="sg-select">
+                                            <option value="progressive">📈 Progressive</option>
+                                            <option value="warm_to_cool">🌙 Warm→Cool</option>
+                                            <option value="cool_to_warm">☀️ Cool→Warm</option>
+                                            <option value="body_scan">🔍 Body Scan</option>
+                                            <option value="chakra">🔮 Chakra</option>
+                                            <option value="themed_animals">🦁 Animals</option>
+                                            <option value="random">🎲 Random</option>
+                                        </select>
+                                    </div>
+                                    <div class="sg-field">
+                                        <label class="sg-label">Focus</label>
+                                        <select id="sg-focus" class="sg-select">
+                                            <option value="relaxation">Relaxation</option>
+                                            <option value="flexibility">Flexibility</option>
+                                            <option value="strength">Strength</option>
+                                            <option value="balance">Balance</option>
+                                            <option value="breathing">Breathing</option>
+                                            <option value="core">Core</option>
+                                            <option value="energy">Energy</option>
+                                            <option value="sleep">Sleep</option>
+                                            <option value="stress-relief">Stress Relief</option>
+                                            <option value="meditation">Meditation</option>
+                                            <option value="posture">Posture</option>
+                                        </select>
+                                    </div>
+                                    <div class="sg-field">
+                                        <label class="sg-label">Character</label>
+                                        <select id="sg-character" class="sg-select">
+                                            <option value="none">None</option>
+                                            <option value="light">Light</option>
+                                            <option value="deep">Deep</option>
+                                        </select>
+                                    </div>
+                                    <div class="sg-field">
+                                        <label class="sg-label">Personality</label>
+                                        <select id="sg-personality" class="sg-select">
+                                            <option value="gentle">🌿 Gentle</option>
+                                            <option value="energetic">⚡ Energetic</option>
+                                            <option value="calm">🧘 Calm</option>
+                                            <option value="playful">🎉 Playful</option>
+                                            <option value="coaching">💪 Coaching</option>
+                                        </select>
+                                    </div>
+                                    <div class="sg-field">
+                                        <label class="sg-label">Instructor</label>
+                                        <input type="text" id="sg-instructor-name" class="sg-input" placeholder="Name...">
+                                    </div>
+                                </div>
+                                <div class="sg-toggle-row">
+                                    <label class="sg-toggle"><input type="checkbox" id="sg-breath-cues" checked><span>Breath</span></label>
+                                    <label class="sg-toggle"><input type="checkbox" id="sg-transitions" checked><span>Transitions</span></label>
+                                    <label class="sg-toggle"><input type="checkbox" id="sg-intro" checked><span>Intro</span></label>
+                                    <label class="sg-toggle"><input type="checkbox" id="sg-outro" checked><span>Outro</span></label>
+                                </div>
+                            </details>
+
+                            <!-- Generate Button -->
+                            <button class="btn btn-primary full-width sg-generate-btn" id="btn-sg-generate">
+                                🤖 Generate Script
+                            </button>
+                            <button class="btn btn-danger full-width" id="btn-sg-cancel-batch" style="display: none; margin-top: 4px; padding: 8px; font-size: 12px;">
+                                ⏹️ Cancel Batch
+                            </button>
+                            <div id="sg-status" class="sg-status"></div>
+                        </div>
+
+                        <!-- RIGHT: Preview -->
+                        <div class="split-right" style="overflow-y: auto;">
+
+                            <!-- Batch Results (for Series/Playlist) -->
+                            <div class="sg-section" id="sg-batch-results" style="display: none;">
+                                <div class="sg-section-header">
+                                    <span class="sg-section-title">🎬 Batch Results</span>
+                                    <span class="badge" id="sg-batch-badge" style="font-size: 10px;">0/0</span>
+                                </div>
+                                <div id="sg-batch-progress" style="margin-bottom: 6px;">
+                                    <div class="sg-score-bar">
+                                        <div class="sg-score-fill" id="sg-batch-fill" style="background: linear-gradient(90deg, #6366f1, #8b5cf6);"></div>
+                                    </div>
+                                    <div id="sg-batch-status" style="font-size: 11px; color: var(--text-secondary); margin-top: 3px;">Waiting...</div>
+                                </div>
+                                <div id="sg-batch-list" style="max-height: 300px; overflow-y: auto;"></div>
+                                <div id="sg-batch-summary" style="margin-top: 6px; font-size: 11px; color: var(--text-secondary);"></div>
+                            </div>
+
+                            <!-- Pose Sequence Preview -->
+                            <div class="sg-section" id="sg-poses-section">
+                                <div class="sg-section-header">
+                                    <span class="sg-section-title">🧘 Poses</span>
+                                    <span class="badge" id="sg-pose-badge" style="font-size: 10px;">0</span>
+                                </div>
+                                <div id="sg-pose-list" class="sg-pose-chips">
+                                    <span class="sg-placeholder">Nhấn Generate để xem...</span>
+                                </div>
+                            </div>
+
+                            <!-- Quality Audit Score -->
+                            <div class="sg-section sg-audit-section" id="sg-audit-card" style="display: none;">
+                                <div class="sg-section-header">
+                                    <span class="sg-section-title">📊 Quality</span>
+                                    <span class="badge" id="sg-audit-grade">—</span>
+                                </div>
+                                <div class="sg-score-bar">
+                                    <div class="sg-score-fill" id="sg-audit-fill"></div>
+                                </div>
+                                <div id="sg-audit-details" class="sg-audit-details"></div>
+                                <button class="sg-fix-btn" id="btn-sg-fix-with-ai" style="display: none;">
+                                    🤖 Fix with AI Agent
+                                </button>
+                            </div>
+
+                            <!-- Generated Script -->
+                            <div class="sg-section sg-script-section">
+                                <div class="sg-section-header">
+                                    <span class="sg-section-title">📄 Script</span>
+                                    <div style="display: flex; gap: 4px;">
+                                        <button class="btn btn-xs btn-ghost" id="btn-sg-copy" title="Copy" disabled>📋</button>
+                                        <button class="btn btn-xs btn-ghost" id="btn-sg-regenerate" title="Redo" disabled>🔄</button>
+                                    </div>
+                                </div>
+                                <div id="sg-script-output" class="sg-script-output">
+                                    <div class="sg-placeholder-block">
+                                        <span>✍️</span>
+                                        <p>Chọn config bên trái và nhấn "Generate Script"</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Meta Info -->
+                            <div class="sg-section" id="sg-meta-card" style="display: none;">
+                                <div class="sg-section-title">📊 Info</div>
+                                <div id="sg-meta-info" class="sg-meta-info"></div>
+                            </div>
+
+                            <!-- Action: Use This Script -->
+                            <div id="sg-actions" style="display: none; margin-top: 8px;">
+                                <button class="btn btn-accent full-width" id="btn-sg-use" disabled style="padding: 10px; font-size: 13px;">
+                                    → Use This Script
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- FLOATING AI AGENT — Universal Script Assistant -->
+                    <div id="sg-agent-fab" class="sg-agent-fab" title="AI Script Agent">
+                        🧠
+                    </div>
+                    <div id="sg-agent-panel" class="sg-agent-panel" style="display: none;">
+                        <div class="sg-agent-header">
+                            <span>🧠 AI Script Agent</span>
+                            <div style="display: flex; gap: 4px;">
+                                <button class="btn btn-xs btn-ghost" id="btn-sg-chat-clear" title="Clear">🗑️</button>
+                                <button class="btn btn-xs btn-ghost" id="btn-sg-agent-close" title="Close">✕</button>
+                            </div>
+                        </div>
+                        <div id="sg-chat-messages" class="sg-agent-messages"></div>
+                        <div id="sg-chat-typing" class="sg-agent-typing" style="display: none;">
+                            <span>🧠 AI đang suy nghĩ...</span>
+                        </div>
+                        <div class="sg-agent-chips" id="sg-chat-chips">
+                            <button class="sg-chip" data-prompt="Tôi muốn tạo video yoga buổi tối để ngủ ngon">🌙 Ngủ ngon</button>
+                            <button class="sg-chip" data-prompt="Morning yoga to start the day with energy">☀️ Morning</button>
+                            <button class="sg-chip" data-prompt="Yoga vui cho bé 4-7 tuổi, chủ đề động vật">🦁 Kids</button>
+                            <button class="sg-chip" data-prompt="Yoga nhẹ nhàng cho người cao tuổi">👴 Senior</button>
+                            <button class="sg-chip" data-prompt="Quick desk yoga for office workers">🪑 Office</button>
+                            <button class="sg-chip" data-prompt="Thiền và mindfulness sâu, 20-30 phút">🧘 Thiền</button>
+                        </div>
+                        <div class="sg-agent-input-bar">
+                            <input type="text" id="sg-chat-input" class="sg-agent-input" placeholder="Hỏi AI bất kỳ điều gì..." autocomplete="off">
+                            <button class="sg-agent-send" id="btn-sg-chat-send">▶</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- STEP 8: Admin Panel -->
+                <section class="step-panel" data-panel="8" id="panel-admin">
                     <div class="panel-header">
                         <h2 class="panel-title">👑 Admin / Quản trị User</h2>
                         <p class="panel-desc">Phê duyệt kích hoạt cho thành viên mới (Chỉ dành cho Admin)</p>
@@ -571,7 +983,47 @@
         <img class="image-modal-content" id="image-modal-img">
     </div>
 
+    <!-- SCRIPT GENERATOR: HISTORY MODAL -->
+    <div id="sg-history-modal" class="sg-modal" style="display: none;">
+        <div class="sg-modal-overlay" id="sg-history-overlay"></div>
+        <div class="sg-modal-container">
+            <div class="sg-modal-header">
+                <h3>💾 Script History & Templates</h3>
+                <button class="btn-icon" id="btn-sg-history-close">✕</button>
+            </div>
+            
+            <div class="sg-modal-tabs">
+                <button class="sg-tab active" data-tab="history">🕛 History</button>
+                <button class="sg-tab" data-tab="templates">📂 Templates</button>
+                <button class="sg-tab" data-tab="favorites">⭐ Favorites</button>
+            </div>
+
+            <div class="sg-modal-body">
+                <!-- History Tab -->
+                <div id="sg-tab-history" class="sg-tab-content active">
+                    <div class="sg-list-container" id="sg-history-list">
+                        <!-- Items injected by JS -->
+                    </div>
+                </div>
+
+                <!-- Templates Tab -->
+                <div id="sg-tab-templates" class="sg-tab-content" style="display: none;">
+                    <div class="sg-action-bar" style="margin-bottom: 12px; display: flex; gap: 8px;">
+                        <input type="text" id="sg-tpl-name" class="sg-input" placeholder="Template Name" style="flex: 1;">
+                        <input type="text" id="sg-tpl-desc" class="sg-input" placeholder="Description" style="flex: 2;">
+                        <button class="btn btn-primary" id="btn-sg-save-template">Save Current Config</button>
+                    </div>
+                    <div class="sg-list-container" id="sg-template-list"></div>
+                </div>
+
+                <!-- Favorites Tab -->
+                <div id="sg-tab-favorites" class="sg-tab-content" style="display: none;">
+                    <div class="sg-list-container" id="sg-favorites-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="/src/main.js"></script>
 </body>
-
 </html>

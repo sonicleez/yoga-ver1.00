@@ -11,6 +11,8 @@ import { getState, setState, onStateChange, restoreAllState, clearAllState, clea
 import { log } from './modules/logger.js';
 import { initThumbnailStudio, renderThumbnailPoseSelectors } from './modules/thumbnailGenerator.js';
 import { supabase } from './modules/supabaseClient.js';
+import { generateScript, generateFromTemplate, generateSeries, generatePlaylist, getTemplateOptions, getLanguageOptions, applyTemplate, detectTextProvider, getDefaultTextModel, getSeriesPresets, getPlaylistThemes, recordGeneration, recordBatchCompletion, getCurrentLevel, getStats, getSkillPacks, markSkillPackUsed, getUnlockedAchievements, getAllAchievements, getRecentXP, addToHistory, getHistory, getHistoryItem, toggleFavorite, deleteHistoryItem, getFavorites, saveUserTemplate, getUserTemplates, getUserTemplate, deleteUserTemplate } from './modules/scriptGenerator/index.js';
+import { generateText as generateTextAI } from './modules/scriptGenerator/textProvider.js';
 
 // ============================================================
 // CONSTANTS
@@ -237,6 +239,8 @@ async function initApp() {
     initPromptPanel();
     initGalleryPanel();
     initThumbnailStudio();
+    initScriptGenerator();
+    initFloatingAgent();
 
     // 3. Rebuild UI from restored state
     rebuildFromState();
@@ -529,11 +533,10 @@ function rebuildFromState() {
         }
     }
 
-    // Restore step
-    if (state.currentStep > 0) {
-        log.info(`  📍 Restoring step ${state.currentStep}`);
-        goToStep(state.currentStep);
-    }
+    // Restore step (default to Script Gen = step 7)
+    const targetStep = state.currentStep || 7;
+    log.info(`  📍 Restoring step ${targetStep}`);
+    goToStep(targetStep);
 
     // Restore style preset selection
     if (state.stylePreset) {
@@ -603,27 +606,34 @@ function initNavigation() {
 }
 
 function goToStep(step) {
-    const stepNames = ['Settings', 'Script Input', 'Character Setup', 'Prompt Review', 'Gallery'];
+    const stepNames = ['Settings', 'Script Input', 'Character Setup', 'Prompt Review', 'Gallery', 'Thumbnail', '', 'Script Gen', 'Admin'];
+    // Logical flow order: Script Gen(7) → Settings(0) → Script(1) → Char(2) → Prompts(3) → Gallery(4) → Thumbnail(5) → Admin(8)
+    const FLOW_ORDER = [7, 0, 1, 2, 3, 4, 5, 8];
+
     log.debug(`📍 [Nav] goToStep(${step}) → "${stepNames[step] || 'Unknown'}"`);
 
-    const state = getState();
     setState('currentStep', step);
 
     // Update panels
     $$('.step-panel').forEach(p => p.classList.remove('active'));
     $(`.step-panel[data-panel="${step}"]`)?.classList.add('active');
 
-    // Update nav
-    $$('.nav-step').forEach((n, i) => {
-        n.classList.remove('active');
-        if (i < step) n.classList.add('completed');
-        if (i === step) n.classList.add('active');
+    // Update nav — mark 'completed' for steps BEFORE current in the flow order
+    const currentFlowIdx = FLOW_ORDER.indexOf(step);
+    $$('.nav-step').forEach(n => {
+        const navStep = parseInt(n.dataset.step);
+        const navFlowIdx = FLOW_ORDER.indexOf(navStep);
+        n.classList.remove('active', 'completed');
+        if (navFlowIdx < currentFlowIdx && navFlowIdx >= 0) n.classList.add('completed');
+        if (navStep === step) n.classList.add('active');
     });
 
-    // Progress bar
-    const pct = ((step + 1) / 5) * 100;
+    // Progress bar — based on flow position
+    const totalFlowSteps = FLOW_ORDER.length - 1; // exclude Admin
+    const flowIdx = Math.max(0, currentFlowIdx);
+    const pct = Math.min(100, ((flowIdx + 1) / totalFlowSteps) * 100);
     $('#progress-fill').style.width = `${pct}%`;
-    $('#progress-label').textContent = `Step ${step + 1} of 5`;
+    $('#progress-label').textContent = stepNames[step] || `Step ${flowIdx + 1}`;
 }
 
 // ============================================================
@@ -1703,6 +1713,1323 @@ function showCancelButton(show) {
         if (cancelBtn) {
             cancelBtn.style.display = 'none';
         }
+    }
+}
+
+// ============================================================
+// SCRIPT GENERATOR
+// ============================================================
+
+function initScriptGenerator() {
+    log.info('📝 [ScriptGen] Initializing Script Generator');
+
+    // --- Populate Language dropdown ---
+    const langSelect = $('#sg-language');
+    if (langSelect) {
+        const langs = getLanguageOptions();
+        langSelect.innerHTML = langs.map(l =>
+            `<option value="${l.code}">${l.flag} ${l.name}</option>`
+        ).join('');
+    }
+
+    // --- Populate Quick Presets ---
+    const presetsContainer = $('#sg-presets');
+    if (presetsContainer) {
+        const templates = getTemplateOptions();
+        presetsContainer.innerHTML = templates.map(t =>
+            `<button class="btn btn-sm btn-outline sg-preset-btn" data-template="${t.id}" title="${t.description}">${t.name}</button>`
+        ).join('');
+
+        // Preset click → fill form
+        presetsContainer.addEventListener('click', (e) => {
+            const btn = e.target.closest('.sg-preset-btn');
+            if (!btn) return;
+            const templateId = btn.dataset.template;
+            applyTemplateToForm(templateId);
+            // Highlight active preset
+            presetsContainer.querySelectorAll('.sg-preset-btn').forEach(b => b.classList.remove('btn-accent'));
+            btn.classList.add('btn-accent');
+            btn.classList.remove('btn-outline');
+            showToast(`✅ Preset "${btn.textContent.trim()}" applied!`, 'info');
+        });
+    }
+
+    // --- Gamification Init ---
+    let _selectedSkillPack = null;
+
+    function renderGamificationBar() {
+        const level = getCurrentLevel();
+        const stats = getStats();
+        const achievements = getUnlockedAchievements();
+
+        const levelBadge = $('#sg-level-badge');
+        const xpFill = $('#sg-xp-fill');
+        const xpText = $('#sg-xp-text');
+        const statScripts = $('#sg-stat-scripts');
+        const statStreak = $('#sg-stat-streak');
+        const statAch = $('#sg-stat-achievements');
+
+        if (levelBadge) levelBadge.textContent = `${level.title.split(' ')[0]} Lv.${level.level}`;
+        if (xpFill) xpFill.style.width = `${(level.progress * 100).toFixed(0)}%`;
+        if (xpText) {
+            const nextXP = level.nextLevelXP ? ` / ${level.nextLevelXP}` : '';
+            xpText.textContent = `${stats.xp}${nextXP} XP`;
+        }
+        if (statScripts) statScripts.textContent = `📝 ${stats.totalScripts}`;
+        if (statStreak) statStreak.textContent = `🔥 ${stats.currentStreak}`;
+        if (statAch) statAch.textContent = `🏆 ${achievements.length}`;
+    }
+
+    // ==========================================
+    // HISTORY & TEMPLATES MODAL LOGIC (PHASE 3.3)
+    // ==========================================
+    const historyModal = $('#sg-history-modal');
+    const historyCloseBtn = $('#btn-sg-history-close');
+    const historyOverlay = $('#sg-history-overlay');
+    const historyBtn = $('#btn-sg-history');
+    
+    if (historyBtn) historyBtn.addEventListener('click', openHistoryModal);
+    if (historyCloseBtn) historyCloseBtn.addEventListener('click', closeHistoryModal);
+    if (historyOverlay) historyOverlay.addEventListener('click', closeHistoryModal);
+
+    function openHistoryModal() {
+        if (!historyModal) return;
+        historyModal.style.display = 'flex';
+        renderHistoryList();
+    }
+
+    function closeHistoryModal() {
+        if (!historyModal) return;
+        historyModal.style.display = 'none';
+    }
+
+    // Tabs
+    const tabs = document.querySelectorAll('.sg-tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', (e) => {
+            tabs.forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.sg-tab-content').forEach(c => c.style.display = 'none');
+            
+            e.target.classList.add('active');
+            const targetId = `sg-tab-${e.target.dataset.tab}`;
+            $(`#${targetId}`).style.display = 'block';
+
+            if (e.target.dataset.tab === 'history') renderHistoryList();
+            if (e.target.dataset.tab === 'templates') renderTemplateList();
+            if (e.target.dataset.tab === 'favorites') renderFavoritesList();
+        });
+    });
+
+    function createHistoryCardHtml(item, isTemplate = false) {
+        let tagHtml = '';
+        if (item.tags) {
+            tagHtml = `<div class="sg-history-tags">${item.tags.map(t => `<span class="sg-history-tag">${t}</span>`).join('')}</div>`;
+        }
+
+        const dateStr = new Date(item.date).toLocaleDateString();
+
+        if (isTemplate) {
+            return `
+                <div class="sg-history-item">
+                    <div class="sg-history-content">
+                        <div class="sg-history-title">${item.name}</div>
+                        <div class="sg-history-meta">
+                            <span>📅 ${dateStr}</span>
+                            <span>•</span>
+                            <span>${item.description}</span>
+                        </div>
+                    </div>
+                    <div class="sg-history-actions">
+                        <button class="btn btn-outline btn-xs" onclick="applyHistoryTemplate('${item.id}', true)">Tải Config</button>
+                        <button class="btn btn-danger btn-xs" onclick="deleteHistoryItemUI('${item.id}', true)">Xóa</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="sg-history-item">
+                <div class="sg-history-content">
+                    <div class="sg-history-title">${item.title}</div>
+                    <div class="sg-history-meta">
+                        <span>📅 ${dateStr}</span>
+                        <span>•</span>
+                        <span>⏱ ${item.duration}m</span>
+                        <span>•</span>
+                        <span class="sg-history-score">Score: ${item.score}</span>
+                    </div>
+                    ${tagHtml}
+                </div>
+                <div class="sg-history-actions">
+                    <button class="sg-btn-fav ${item.isFavorite ? 'active' : ''}" onclick="toggleHistoryFavUI('${item.id}')">⭐</button>
+                    <button class="btn btn-primary btn-xs" onclick="applyHistoryTemplate('${item.id}', false)">Xem Script</button>
+                </div>
+            </div>
+        `;
+    }
+
+    window.toggleHistoryFavUI = function(id) {
+        toggleFavorite(id);
+        const activeTab = document.querySelector('.sg-tab.active').dataset.tab;
+        if (activeTab === 'history') renderHistoryList();
+        if (activeTab === 'favorites') renderFavoritesList();
+    };
+
+    window.deleteHistoryItemUI = function(id, isTemplate) {
+        if (confirm('Bạn có chắc chắn muốn xóa?')) {
+            if (isTemplate) {
+                deleteUserTemplate(id);
+                renderTemplateList();
+            } else {
+                deleteHistoryItem(id);
+                renderHistoryList();
+            }
+        }
+    };
+
+    window.applyHistoryTemplate = function(id, isTemplate) {
+        let item = isTemplate ? getUserTemplate(id) : getHistoryItem(id);
+        if (!item) return;
+        
+        // Restore Config UI
+        const config = item.config;
+        if (config.category && $('#sg-category')) $('#sg-category').value = config.category;
+        if (config.audience && $('#sg-audience')) $('#sg-audience').value = config.audience;
+        if (config.language && $('#sg-language')) $('#sg-language').value = config.language;
+        if (config.duration && $('#sg-duration')) $('#sg-duration').value = config.duration.toString() + ' min';
+        
+        // Render script if treating from history
+        if (!isTemplate && item.scriptText) {
+            _lastResult = {
+                script: item.scriptText,
+                poseSequence: item.poseSequence,
+                meta: item.meta,
+                auditResult: { totalScore: item.score }
+            };
+            renderGeneratedScript(_lastResult);
+            // Switch to single mode
+            $('input[name="sg-mode"][value="single"]').click();
+        }
+
+        closeHistoryModal();
+        showToast('✅ Đã tải thành công', 'success');
+    };
+
+    function renderHistoryList() {
+        const list = getHistory();
+        const container = $('#sg-history-list');
+        if (!container) return;
+        if (list.length === 0) {
+            container.innerHTML = `<div class="sg-empty-state">Chưa có lịch sử tạo kịch bản.</div>`;
+            return;
+        }
+        container.innerHTML = list.map(item => createHistoryCardHtml(item)).join('');
+    }
+
+    function renderFavoritesList() {
+        const list = getFavorites();
+        const container = $('#sg-favorites-list');
+        if (!container) return;
+        if (list.length === 0) {
+            container.innerHTML = `<div class="sg-empty-state">Chưa có kịch bản yêu thích.</div>`;
+            return;
+        }
+        container.innerHTML = list.map(item => createHistoryCardHtml(item)).join('');
+    }
+
+    function renderTemplateList() {
+        const list = getUserTemplates();
+        const container = $('#sg-template-list');
+        if (!container) return;
+        if (list.length === 0) {
+            container.innerHTML = `<div class="sg-empty-state">Chưa có Template Tùy chỉnh nào.</div>`;
+            return;
+        }
+        container.innerHTML = list.map(item => createHistoryCardHtml(item, true)).join('');
+    }
+
+    // Save Template Handler
+    $('#btn-sg-save-template')?.addEventListener('click', () => {
+        const name = $('#sg-tpl-name').value.trim();
+        const desc = $('#sg-tpl-desc').value.trim();
+        if (!name) return showToast('Vui lòng nhập tên Template', 'error');
+
+        const config = {
+            category: $('#sg-category')?.value || 'Bedtime',
+            audience: $('#sg-audience')?.value || 'Adults',
+            difficulty: $('#sg-level')?.value || 'beginner',
+            poses: parseInt($('#sg-poses')?.value || '12'),
+            duration: parseInt(($('#sg-duration')?.value || '15 min').replace(' min', '')),
+            language: $('#sg-language')?.value || 'vi',
+            tone: $('#sg-personality')?.value || 'gentle'
+        };
+
+        const template = saveUserTemplate(name, desc, config);
+        showToast(`✅ Đã lưu Template "${template.name}"`, 'success');
+        $('#sg-tpl-name').value = '';
+        $('#sg-tpl-desc').value = '';
+        renderTemplateList();
+    });
+
+    function renderSkillPacks() {
+        const container = $('#sg-skill-packs');
+        const badge = $('#sg-packs-badge');
+        if (!container) return;
+
+        const packs = getSkillPacks();
+        if (badge) badge.textContent = packs.filter(p => !p.locked).length;
+
+        container.innerHTML = packs.map(pack => `
+            <div class="sg-skill-pack-card ${pack.locked ? 'locked' : ''} ${_selectedSkillPack === pack.id ? 'active' : ''}"
+                 data-pack="${pack.id}" style="--pack-color: ${pack.color}">
+                <div class="sg-pack-name">${pack.name}</div>
+                <div class="sg-pack-desc">${pack.description}</div>
+                <div class="sg-pack-meta">
+                    <span>${pack.poses.length} poses</span>
+                    <span>•</span>
+                    <span>${pack.difficulty}</span>
+                    <span class="sg-pack-xp">+${pack.xpReward} XP</span>
+                    ${pack.used ? '<span>✅</span>' : ''}
+                </div>
+            </div>
+        `).join('');
+
+        // Click handler
+        container.addEventListener('click', (e) => {
+            const card = e.target.closest('.sg-skill-pack-card');
+            if (!card || card.classList.contains('locked')) return;
+            const packId = card.dataset.pack;
+            
+            if (_selectedSkillPack === packId) {
+                // Deselect
+                _selectedSkillPack = null;
+                container.querySelectorAll('.sg-skill-pack-card').forEach(c => c.classList.remove('active'));
+                showToast('🏆 Skill Pack deselected', 'info');
+            } else {
+                // Select
+                _selectedSkillPack = packId;
+                container.querySelectorAll('.sg-skill-pack-card').forEach(c => c.classList.remove('active'));
+                card.classList.add('active');
+                markSkillPackUsed(packId);
+                showToast(`🏆 Skill Pack "${card.querySelector('.sg-pack-name').textContent}" selected! Poses will be prioritized.`, 'success');
+            }
+        });
+    }
+
+    function showAchievementToast(achievement) {
+        const toast = $('#sg-achievement-toast');
+        if (!toast) return;
+        const icon = $('#sg-achievement-icon');
+        const title = $('#sg-achievement-title');
+        const desc = $('#sg-achievement-desc');
+        const xp = $('#sg-achievement-xp');
+
+        if (icon) icon.textContent = achievement.icon;
+        if (title) title.textContent = `🏆 ${achievement.name}`;
+        if (desc) desc.textContent = achievement.description;
+        if (xp) xp.textContent = `+${achievement.xpReward} XP`;
+        
+        toast.style.display = '';
+        setTimeout(() => { toast.style.display = 'none'; }, 5000);
+    }
+
+    function showXPPopup(rewards) {
+        if (!rewards?.length) return;
+        const totalXP = rewards.reduce((sum, r) => sum + (r?.xp || 0), 0);
+        if (totalXP <= 0) return;
+
+        const popup = document.createElement('div');
+        popup.className = 'sg-xp-popup';
+        popup.textContent = `+${totalXP} XP`;
+        popup.style.left = '50%';
+        popup.style.top = '120px';
+        document.body.appendChild(popup);
+        setTimeout(() => popup.remove(), 1600);
+    }
+
+    function onScriptGenerated(result) {
+        const gamResult = recordGeneration(result);
+        renderGamificationBar();
+
+        // Show rewards
+        if (gamResult.rewards?.length) {
+            showXPPopup(gamResult.rewards);
+        }
+
+        // Show achievements
+        if (gamResult.newAchievements?.length) {
+            gamResult.newAchievements.forEach((a, i) => {
+                setTimeout(() => showAchievementToast(a), i * 2000);
+            });
+        }
+    }
+
+    // Initial render
+    renderGamificationBar();
+    renderSkillPacks();
+
+    // --- Mode Selector (Single / Series / Playlist) ---
+    let _currentMode = 'single';
+    const modeRadios = document.querySelectorAll('input[name="sg-mode"]');
+    const seriesPanel = $('#sg-series-config');
+    const playlistPanel = $('#sg-playlist-config');
+    const generateBtn = $('#btn-sg-generate');
+
+    modeRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            _currentMode = e.target.value;
+            // Show/hide panels
+            if (seriesPanel) seriesPanel.style.display = _currentMode === 'series' ? '' : 'none';
+            if (playlistPanel) playlistPanel.style.display = _currentMode === 'playlist' ? '' : 'none';
+            // Update button text
+            if (generateBtn) {
+                generateBtn.innerHTML = _currentMode === 'single' ? '🤖 Generate Script'
+                    : _currentMode === 'series' ? '🎬 Generate Series'
+                    : '🎵 Generate Playlist';
+            }
+            log.info(`📝 [ScriptGen] Mode changed: ${_currentMode}`);
+        });
+    });
+
+    // --- Populate Series Presets dropdown ---
+    const seriesPresetSelect = $('#sg-series-preset');
+    const seriesPresetsListEl = $('#sg-series-presets-list');
+    if (seriesPresetSelect) {
+        const presets = getSeriesPresets();
+        seriesPresetSelect.innerHTML = '<option value="">Custom</option>'
+            + presets.map(p => `<option value="${p.id}">${p.name} (${p.totalScripts})</option>`).join('');
+
+        // Also show as preset buttons
+        if (seriesPresetsListEl) {
+            seriesPresetsListEl.innerHTML = presets.map(p =>
+                `<button class="btn btn-sm btn-outline sg-series-preset-btn" data-preset="${p.id}" title="${p.description}">${p.name}</button>`
+            ).join('');
+            seriesPresetsListEl.addEventListener('click', (e) => {
+                const btn = e.target.closest('.sg-series-preset-btn');
+                if (btn) {
+                    seriesPresetSelect.value = btn.dataset.preset;
+                    seriesPresetSelect.dispatchEvent(new Event('change'));
+                    seriesPresetsListEl.querySelectorAll('.sg-series-preset-btn').forEach(b => {
+                        b.classList.remove('btn-accent');
+                        b.classList.add('btn-outline');
+                    });
+                    btn.classList.add('btn-accent');
+                    btn.classList.remove('btn-outline');
+                }
+            });
+        }
+
+        // When preset changes, update total scripts
+        seriesPresetSelect.addEventListener('change', () => {
+            const preset = getSeriesPresets().find(p => p.id === seriesPresetSelect.value);
+            if (preset) {
+                const totalEl = $('#sg-series-total');
+                if (totalEl) totalEl.value = String(preset.totalScripts);
+            }
+        });
+    }
+
+    // --- Populate Playlist Themes dropdown ---
+    const playlistThemeSelect = $('#sg-playlist-theme');
+    const playlistThemesListEl = $('#sg-playlist-themes-list');
+    if (playlistThemeSelect) {
+        const themes = getPlaylistThemes();
+        playlistThemeSelect.innerHTML = '<option value="">Custom</option>'
+            + themes.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+
+        if (playlistThemesListEl) {
+            playlistThemesListEl.innerHTML = themes.map(t =>
+                `<button class="btn btn-sm btn-outline sg-playlist-theme-btn" data-theme="${t.id}" title="${t.description}">${t.name}</button>`
+            ).join('');
+            playlistThemesListEl.addEventListener('click', (e) => {
+                const btn = e.target.closest('.sg-playlist-theme-btn');
+                if (btn) {
+                    playlistThemeSelect.value = btn.dataset.theme;
+                    playlistThemesListEl.querySelectorAll('.sg-playlist-theme-btn').forEach(b => {
+                        b.classList.remove('btn-accent');
+                        b.classList.add('btn-outline');
+                    });
+                    btn.classList.add('btn-accent');
+                    btn.classList.remove('btn-outline');
+                }
+            });
+        }
+    }
+
+    // --- AI Script Consultant (Chat) ---
+    const chatMessages = $('#sg-chat-messages');
+    const chatInput = $('#sg-chat-input');
+    const chatSendBtn = $('#btn-sg-chat-send');
+    const chatTyping = $('#sg-chat-typing');
+    let _chatHistory = []; // {role: 'user'|'ai', text: string, config?: object}
+    let _lastSuggestedConfig = null;
+
+    // Welcome message
+    if (chatMessages) {
+        addChatMessage('ai', `Xin chào! 👋 Tôi là trợ lý AI chuyên tạo kịch bản yoga video.\n\nHãy cho tôi biết bạn muốn tạo video yoga kiểu gì? Ví dụ:\n• Đối tượng? (trẻ em, người lớn, cao tuổi...)\n• Mục đích? (ngủ ngon, năng lượng, giảm stress...)\n• Thời lượng mong muốn?\n• Ngôn ngữ script?\n\nHoặc chọn nhanh chủ đề bên dưới 👇`);
+    }
+
+    // Suggestion chips → send as chat message
+    $$('.sg-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const prompt = chip.dataset.prompt || '';
+            if (prompt && chatInput) {
+                chatInput.value = prompt;
+                sendChatMessage();
+            }
+        });
+    });
+
+    // Send button
+    if (chatSendBtn) {
+        chatSendBtn.addEventListener('click', () => sendChatMessage());
+    }
+
+    // Enter key
+    if (chatInput) {
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendChatMessage();
+            }
+        });
+    }
+
+    // Clear chat
+    const clearChatBtn = $('#btn-sg-chat-clear');
+    if (clearChatBtn) {
+        clearChatBtn.addEventListener('click', () => {
+            _chatHistory = [];
+            _lastSuggestedConfig = null;
+            if (chatMessages) chatMessages.innerHTML = '';
+            addChatMessage('ai', 'Chat đã được reset! 🔄\n\nHãy mô tả ý tưởng video yoga mới của bạn.');
+        });
+    }
+
+    // Send message function
+    async function sendChatMessage() {
+        const text = chatInput?.value?.trim();
+        if (!text) return;
+
+        const apiKey = getActiveApiKey();
+        if (!apiKey) {
+            showToast('❌ Vui lòng nhập API Key ở Settings trước!', 'error');
+            return;
+        }
+
+        // Add user message
+        addChatMessage('user', text);
+        chatInput.value = '';
+        chatSendBtn.disabled = true;
+
+        // Show typing
+        if (chatTyping) chatTyping.style.display = 'block';
+        scrollChatToBottom();
+
+        try {
+            const result = await consultWithAI(text, _chatHistory, apiKey);
+            
+            // Hide typing
+            if (chatTyping) chatTyping.style.display = 'none';
+
+            // Add AI response
+            addChatMessage('ai', result.text, result.config);
+
+            if (result.config) {
+                _lastSuggestedConfig = result.config;
+            }
+
+        } catch (err) {
+            if (chatTyping) chatTyping.style.display = 'none';
+            addChatMessage('ai', `❌ Xin lỗi, đã có lỗi xảy ra: ${err.message}\n\nHãy thử lại nhé!`);
+        } finally {
+            chatSendBtn.disabled = false;
+            chatInput?.focus();
+        }
+    }
+
+    // Add message to chat UI
+    function addChatMessage(role, text, config = null) {
+        if (!chatMessages) return;
+
+        // Track history
+        _chatHistory.push({ role, text, config });
+
+        const msgEl = document.createElement('div');
+        msgEl.className = `sg-chat-msg ${role}`;
+
+        const avatar = role === 'ai' ? '🧠' : '👤';
+        
+        // Format text: convert \n to <br>, bold **text**
+        let formattedText = escapeHtml(text)
+            .replace(/\n/g, '<br>')
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/•/g, '<span style="color: var(--accent-primary)">•</span>');
+
+        let bubbleContent = formattedText;
+
+        // If AI has config suggestion, add config card + action buttons
+        if (role === 'ai' && config) {
+            const configLabels = {
+                category: '📂', language: '🌐', level: '📊',
+                audience: '👥', duration: '⏱️', poseCount: '🧘',
+                narrationStyle: '📝', flow: '🌊', focusArea: '🎯',
+                personality: '🧑‍🏫',
+            };
+
+            let configGrid = '';
+            for (const [key, icon] of Object.entries(configLabels)) {
+                if (config[key] !== undefined && config[key] !== '') {
+                    configGrid += `<span>${icon} ${key}: <b>${config[key]}</b></span>`;
+                }
+            }
+
+            bubbleContent += `
+                <div class="sg-chat-config">
+                    <div class="sg-chat-config-grid">${configGrid}</div>
+                </div>
+                <div class="sg-chat-actions">
+                    <button class="sg-chat-action-btn primary" onclick="window._sgApplyConfig()">✅ Apply Config</button>
+                    <button class="sg-chat-action-btn" onclick="window._sgRefine('Hãy sửa lại config, tôi muốn thay đổi')">🔧 Tinh chỉnh</button>
+                    <button class="sg-chat-action-btn" onclick="window._sgRefine('Gợi ý thêm ý tưởng khác')">💡 Ý tưởng khác</button>
+                </div>
+            `;
+        }
+
+        msgEl.innerHTML = `
+            <div class="sg-chat-avatar">${avatar}</div>
+            <div class="sg-chat-bubble">${bubbleContent}</div>
+        `;
+
+        chatMessages.appendChild(msgEl);
+        scrollChatToBottom();
+    }
+
+    function scrollChatToBottom() {
+        if (chatMessages) {
+            requestAnimationFrame(() => {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            });
+        }
+    }
+
+    // Expose functions for inline button onclick handlers
+    window._sgApplyConfig = () => {
+        if (_lastSuggestedConfig) {
+            applyBrainstormToForm(_lastSuggestedConfig);
+            addChatMessage('ai', '✅ Config đã được apply! Bạn có thể xem và chỉnh sửa thêm ở phần Configuration bên dưới.\n\nKhi sẵn sàng, nhấn **🤖 Generate Script** để tạo kịch bản! 🚀');
+            showToast('✅ Config applied!', 'success');
+        }
+    };
+
+    window._sgRefine = (prompt) => {
+        if (chatInput) {
+            chatInput.value = prompt;
+            sendChatMessage();
+        }
+    };
+
+    // --- Generate Button ---
+    let _lastResult = null;
+
+    const generateBtn2 = $('#btn-sg-generate');
+    const cancelBatchBtn = $('#btn-sg-cancel-batch');
+    let _batchCancelToken = null;
+    let _batchResults = [];
+
+    if (generateBtn2) {
+        generateBtn2.addEventListener('click', async () => {
+            const apiKey = getActiveApiKey();
+            if (!apiKey) {
+                showToast('❌ Vui lòng nhập API Key ở Settings trước!', 'error');
+                return;
+            }
+
+            const config = collectScriptGenConfig();
+            const statusEl = $('#sg-status');
+
+            generateBtn2.disabled = true;
+            if (statusEl) {
+                statusEl.style.display = 'block';
+                statusEl.textContent = 'Preparing...';
+            }
+
+            if (_currentMode === 'single') {
+                // --- SINGLE MODE ---
+                generateBtn2.innerHTML = '⏳ Generating...';
+                try {
+                    const result = await generateScript(config, apiKey, {
+                        onStatus: (msg) => { if (statusEl) statusEl.textContent = msg; },
+                        onPoseSequence: (poses) => { renderPoseSequence(poses); },
+                    });
+                    _lastResult = result;
+                    renderGeneratedScript(result);
+                    onScriptGenerated(result);
+                    addToHistory(result, config);
+                    showToast('✅ Script generated successfully!', 'success');
+                } catch (err) {
+                    showToast(`❌ Generation failed: ${err.message}`, 'error');
+                    if (statusEl) {
+                        statusEl.textContent = `Error: ${err.message}`;
+                        statusEl.style.color = 'var(--accent-danger)';
+                    }
+                } finally {
+                    generateBtn2.disabled = false;
+                    generateBtn2.innerHTML = '🤖 Generate Script';
+                }
+
+            } else if (_currentMode === 'series') {
+                // --- SERIES MODE ---
+                generateBtn2.innerHTML = '⏳ Generating Series...';
+                if (cancelBatchBtn) cancelBatchBtn.style.display = '';
+
+                const seriesConfig = {
+                    totalScripts: parseInt($('#sg-series-total')?.value || '7'),
+                    progressionType: $('#sg-series-progression')?.value || 'gradual',
+                    baseCategory: config.category,
+                    baseAudience: config.niche?.audience || 'adults',
+                    startLevel: config.niche?.level || 'beginner',
+                    endLevel: config.niche?.level === 'beginner' ? 'intermediate' : 'advanced',
+                    seriesTitle: $('#sg-series-title')?.value || '',
+                    language: config.language,
+                    baseConfig: config,
+                };
+
+                // Apply preset if selected
+                const presetId = $('#sg-series-preset')?.value;
+                if (presetId) {
+                    const preset = getSeriesPresets().find(p => p.id === presetId);
+                    if (preset) {
+                        Object.assign(seriesConfig, preset);
+                        seriesConfig.language = config.language;
+                        seriesConfig.baseConfig = config;
+                    }
+                }
+
+                initBatchResultsUI(seriesConfig.totalScripts);
+
+                try {
+                    const { results, summary, cancelToken } = await generateSeries(seriesConfig, apiKey, {
+                        onProgress: (idx, total, info) => updateBatchProgress(idx, total, info),
+                        onError: (idx, err) => updateBatchItemStatus(idx, 'error', err.message),
+                        onComplete: (results, summary) => renderBatchSummary(results, summary),
+                    });
+                    _batchCancelToken = cancelToken;
+                    _batchResults = results;
+                    // Gamification + History: record each result + batch completion
+                    results.forEach(r => { 
+                        if (r.result) {
+                            onScriptGenerated(r.result);
+                            addToHistory(r.result, Object.assign({}, config, { title: r.title }));
+                        }
+                    });
+                    recordBatchCompletion('series', results.length);
+                    renderGamificationBar();
+                    showToast(`✅ Series complete: ${summary.successCount}/${summary.totalScripts}`, 'success');
+                } catch (err) {
+                    showToast(`❌ Series failed: ${err.message}`, 'error');
+                } finally {
+                    generateBtn2.disabled = false;
+                    generateBtn2.innerHTML = '🎬 Generate Series';
+                    if (cancelBatchBtn) cancelBatchBtn.style.display = 'none';
+                }
+
+            } else if (_currentMode === 'playlist') {
+                // --- PLAYLIST MODE ---
+                generateBtn2.innerHTML = '⏳ Generating Playlist...';
+                if (cancelBatchBtn) cancelBatchBtn.style.display = '';
+
+                const playlistConfig = {
+                    totalScripts: parseInt($('#sg-playlist-total')?.value || '5'),
+                    playlistTitle: $('#sg-playlist-title')?.value || '',
+                    theme: $('#sg-playlist-theme')?.value || '',
+                    variety: $('#sg-playlist-variety')?.value || 'medium',
+                    language: config.language,
+                    baseConfig: config,
+                };
+
+                initBatchResultsUI(playlistConfig.totalScripts);
+
+                try {
+                    const { results, summary, cancelToken } = await generatePlaylist(playlistConfig, apiKey, {
+                        onProgress: (idx, total, info) => updateBatchProgress(idx, total, info),
+                        onError: (idx, err) => updateBatchItemStatus(idx, 'error', err.message),
+                        onComplete: (results, summary) => renderBatchSummary(results, summary),
+                    });
+                    _batchCancelToken = cancelToken;
+                    _batchResults = results;
+                    // Gamification + History: record each result + batch completion
+                    results.forEach(r => { 
+                        if (r.result) {
+                            onScriptGenerated(r.result);
+                            addToHistory(r.result, Object.assign({}, config, { title: r.title }));
+                        }
+                    });
+                    recordBatchCompletion('playlist', results.length);
+                    renderGamificationBar();
+                    showToast(`✅ Playlist complete: ${summary.successCount}/${summary.totalScripts}`, 'success');
+                } catch (err) {
+                    showToast(`❌ Playlist failed: ${err.message}`, 'error');
+                } finally {
+                    generateBtn2.disabled = false;
+                    generateBtn2.innerHTML = '🎵 Generate Playlist';
+                    if (cancelBatchBtn) cancelBatchBtn.style.display = 'none';
+                }
+            }
+        });
+    }
+
+    // Cancel batch button
+    if (cancelBatchBtn) {
+        cancelBatchBtn.addEventListener('click', () => {
+            if (_batchCancelToken) {
+                _batchCancelToken.cancel();
+                showToast('⏹️ Batch generation cancelled', 'info');
+            }
+        });
+    }
+
+    // --- Copy button ---
+    const copyBtn = $('#btn-sg-copy');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+            if (!_lastResult?.script) return;
+            navigator.clipboard.writeText(_lastResult.script).then(() => {
+                showToast('📋 Script copied to clipboard!', 'success');
+            });
+        });
+    }
+
+    // --- Regenerate button ---
+    const regenBtn = $('#btn-sg-regenerate');
+    if (regenBtn) {
+        regenBtn.addEventListener('click', () => {
+            generateBtn2?.click();
+        });
+    }
+
+    // --- Use This Script button ---
+    const useBtn = $('#btn-sg-use');
+    if (useBtn) {
+        useBtn.addEventListener('click', () => {
+            if (!_lastResult?.script) return;
+            const scriptInput = $('#script-input');
+            if (scriptInput) {
+                scriptInput.value = _lastResult.script;
+                goToStep(1);
+                showToast('📝 Script loaded! Click "Phân tích Script" to continue.', 'info');
+            }
+        });
+    }
+
+    // === Batch Results Helper Functions ===
+
+    function initBatchResultsUI(total) {
+        const batchPanel = $('#sg-batch-results');
+        const batchList = $('#sg-batch-list');
+        const batchBadge = $('#sg-batch-badge');
+        const batchFill = $('#sg-batch-fill');
+        const batchStatus = $('#sg-batch-status');
+
+        if (batchPanel) batchPanel.style.display = '';
+        if (batchBadge) batchBadge.textContent = `0/${total}`;
+        if (batchFill) batchFill.style.width = '0%';
+        if (batchStatus) batchStatus.textContent = 'Starting batch...';
+        if (batchList) {
+            batchList.innerHTML = Array.from({ length: total }, (_, i) =>
+                `<div class="sg-batch-item pending" data-index="${i}" id="sg-batch-item-${i}">
+                    <span class="sg-batch-item-index">${i + 1}</span>
+                    <span class="sg-batch-item-label">Waiting...</span>
+                    <span class="sg-batch-item-score">—</span>
+                </div>`
+            ).join('');
+
+            // Click batch item → load that script into preview
+            batchList.addEventListener('click', (e) => {
+                const item = e.target.closest('.sg-batch-item');
+                if (!item) return;
+                const idx = parseInt(item.dataset.index);
+                const result = _batchResults[idx];
+                if (result?.result) {
+                    _lastResult = result.result;
+                    renderGeneratedScript(result.result);
+                    if (result.result.poseSequence) renderPoseSequence(result.result.poseSequence);
+                    // Highlight active
+                    batchList.querySelectorAll('.sg-batch-item').forEach(el => el.classList.remove('active'));
+                    item.classList.add('active');
+                    showToast(`📄 Loaded script ${idx + 1}: ${result.label}`, 'info');
+                }
+            });
+        }
+    }
+
+    function updateBatchProgress(idx, total, info) {
+        const batchBadge = $('#sg-batch-badge');
+        const batchFill = $('#sg-batch-fill');
+        const batchStatus = $('#sg-batch-status');
+        const item = $(`#sg-batch-item-${idx}`);
+
+        const progress = ((idx + 1) / total) * 100;
+        if (batchBadge) batchBadge.textContent = `${idx + 1}/${total}`;
+        if (batchFill) batchFill.style.width = `${progress}%`;
+        if (batchStatus) batchStatus.textContent = `${info.status === 'done' ? '✅' : '⏳'} ${info.label} — ${info.status}`;
+
+        if (item) {
+            item.className = `sg-batch-item ${info.status === 'done' ? 'success' : 'running'}`;
+            item.querySelector('.sg-batch-item-label').textContent = info.label || `Script ${idx + 1}`;
+            if (info.score) {
+                const scoreEl = item.querySelector('.sg-batch-item-score');
+                scoreEl.textContent = `${info.score}/100`;
+                scoreEl.style.color = info.score >= 75 ? '#10b981' : info.score >= 50 ? '#f59e0b' : '#ef4444';
+            }
+        }
+
+        // Mark next item as "running"
+        if (info.status === 'done' && idx + 1 < total) {
+            const nextItem = $(`#sg-batch-item-${idx + 1}`);
+            if (nextItem) {
+                nextItem.className = 'sg-batch-item running';
+                nextItem.querySelector('.sg-batch-item-label').textContent = 'Generating...';
+            }
+        }
+    }
+
+    function updateBatchItemStatus(idx, status, message) {
+        const item = $(`#sg-batch-item-${idx}`);
+        if (item) {
+            item.className = `sg-batch-item ${status}`;
+            item.querySelector('.sg-batch-item-label').textContent = message || `Error`;
+        }
+    }
+
+    function renderBatchSummary(results, summary) {
+        const batchSummary = $('#sg-batch-summary');
+        const batchStatus = $('#sg-batch-status');
+        
+        if (batchStatus) batchStatus.textContent = '✅ Batch complete!';
+        if (batchSummary) {
+            const avgTime = (summary.avgTimePerScript / 1000).toFixed(1);
+            const totalTime = (summary.totalTimeMs / 1000).toFixed(0);
+            batchSummary.innerHTML = `
+                <div style="display: flex; gap: 12px; flex-wrap: wrap; padding: 6px; background: rgba(255,255,255,0.02); border-radius: 6px;">
+                    <span>✅ ${summary.successCount} success</span>
+                    <span>❌ ${summary.errorCount} errors</span>
+                    <span>📊 Avg: ${summary.averageScore}/100</span>
+                    <span>⏱️ ${totalTime}s total (${avgTime}s/script)</span>
+                </div>
+            `;
+        }
+    }
+
+}
+
+// ============================================================
+// AI SCRIPT CONSULTANT (Chat Engine)
+// ============================================================
+
+const CONSULTANT_SYSTEM_PROMPT = `You are "Yoga Script Consultant" — a friendly, expert AI assistant specialized in creating yoga video scripts.
+
+YOUR PERSONALITY:
+- Warm, knowledgeable, and conversational
+- Like a real yoga instructor helping a producer plan their next video
+- You ask smart follow-up questions when needed
+- You give creative suggestions the user might not have thought of
+
+YOUR JOB:
+1. CHAT naturally with the user about their yoga video idea
+2. ASK clarifying questions if their request is vague (audience? duration? mood? language?)
+3. SUGGEST creative ideas they might not have considered
+4. When you have enough info, PROPOSE a config with a JSON block
+
+CONVERSATION RULES:
+- Always respond in the SAME LANGUAGE the user is using
+- Keep responses concise but helpful (3-8 sentences max for conversational replies)
+- Don't dump all questions at once — ask 1-2 at a time, naturally
+- If the user gives enough detail upfront, go straight to suggesting a config
+- Be enthusiastic about good ideas, suggest improvements for weak ones
+- Mention specific yoga concepts when relevant (pose names, flow types, etc.)
+
+WHEN PROPOSING A CONFIG:
+Include a JSON block in your response like this:
+
+\`\`\`json
+{
+  "category": "bedtime|morning|kids|meditation|power|senior|office|prenatal|yin|recovery",
+  "language": "en|vi|ja|ko|zh|es|fr|de|pt|hi",
+  "level": "beginner|intermediate|advanced",
+  "audience": "adults|kids|teens|seniors|pregnant|athletes|beginners|office-workers",
+  "duration": 15,
+  "poseCount": 12,
+  "narrationStyle": "minimal|short|detailed|poetic",
+  "flow": "progressive|warm_to_cool|cool_to_warm|body_scan|chakra|themed_animals|random",
+  "focusArea": "relaxation|flexibility|strength|balance|breathing|core|energy|sleep|stress-relief|meditation|posture",
+  "breathCues": true,
+  "transitions": true,
+  "personality": "gentle|energetic|calm|playful|coaching",
+  "instructorName": ""
+}
+\`\`\`
+
+Only include the JSON block when you're ready to suggest a complete config. Otherwise, just chat naturally.
+
+SMART DEFAULTS:
+- Kids → themed_animals flow, playful personality, short narration
+- Bedtime → warm_to_cool flow, gentle personality, poetic narration
+- Morning → cool_to_warm flow, energetic personality
+- Senior → beginner level, gentle, exclude advanced poses
+- Office → short duration (5-10 min), minimal narration`;
+
+/**
+ * Multi-turn AI consultation — sends conversation history for context
+ */
+async function consultWithAI(userMessage, chatHistory, apiKey) {
+    const provider = detectTextProvider(apiKey);
+    const model = getDefaultTextModel(provider);
+
+    // Build conversation context from history (last 10 messages max)
+    const recentHistory = chatHistory.slice(-10);
+    let conversationContext = '';
+    for (const msg of recentHistory) {
+        if (msg.role === 'user') {
+            conversationContext += `\nUser: ${msg.text}`;
+        } else if (msg.role === 'ai') {
+            conversationContext += `\nAssistant: ${msg.text}`;
+        }
+    }
+
+    const userPrompt = conversationContext 
+        ? `Previous conversation:\n${conversationContext}\n\nUser's latest message: ${userMessage}`
+        : userMessage;
+
+    const response = await generateTextAI(
+        CONSULTANT_SYSTEM_PROMPT,
+        userPrompt,
+        apiKey,
+        { model, maxTokens: 2048, temperature: 0.8, provider }
+    );
+
+    // Parse response — check if it contains a JSON config
+    const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/);
+    let config = null;
+
+    if (jsonMatch) {
+        try {
+            config = JSON.parse(jsonMatch[1]);
+        } catch (e) {
+            log.warn('⚠️ Failed to parse consultant JSON config');
+        }
+    }
+
+    // Extract the text part (everything except the JSON block)
+    let text = response
+        .replace(/```json[\s\S]*?```/g, '')  // Remove JSON blocks
+        .replace(/^\s*\n/gm, '\n')           // Clean up extra blank lines
+        .trim();
+
+    // If text is empty but we have config, add a default message
+    if (!text && config) {
+        text = 'Đây là config tôi suggest cho bạn:';
+    }
+
+    return { text, config, rawResponse: response };
+}
+
+/**
+ * Apply AI brainstorm config to the form
+ */
+function applyBrainstormToForm(config) {
+    if (!config) return;
+
+    // Map AI response fields to form fields
+    if (config.category) setSelectValue('sg-category', config.category);
+    if (config.language) setSelectValue('sg-language', config.language);
+    if (config.level) setSelectValue('sg-level', config.level);
+    if (config.audience) setSelectValue('sg-audience', config.audience);
+    if (config.duration) setSelectValue('sg-duration', String(config.duration));
+    if (config.poseCount) setSelectValue('sg-pose-count', String(config.poseCount));
+    if (config.narrationStyle) setSelectValue('sg-narration', config.narrationStyle);
+    if (config.flow) setSelectValue('sg-flow', config.flow);
+    if (config.focusArea) setSelectValue('sg-focus', config.focusArea);
+    if (config.characterMode) setSelectValue('sg-character', config.characterMode);
+    if (config.personality) setSelectValue('sg-personality', config.personality);
+    if (config.instructorName) {
+        const nameInput = $('#sg-instructor-name');
+        if (nameInput) nameInput.value = config.instructorName;
+    }
+
+    // Checkboxes
+    if (config.breathCues !== undefined) {
+        const el = $('#sg-breath-cues');
+        if (el) el.checked = config.breathCues;
+    }
+    if (config.transitions !== undefined) {
+        const el = $('#sg-transitions');
+        if (el) el.checked = config.transitions;
+    }
+}
+
+/**
+ * Collect config from the Script Gen form fields
+ */
+function collectScriptGenConfig() {
+    const s = getState();
+    return {
+        category: $('#sg-category')?.value || 'bedtime',
+        language: $('#sg-language')?.value || 'en',
+        characterMode: $('#sg-character')?.value || 'none',
+        characterDescription: s.characterDescription || '',
+        scriptFormat: 'solo',
+        niche: {
+            level: $('#sg-level')?.value || 'beginner',
+            audience: $('#sg-audience')?.value || 'adults',
+            focusArea: $('#sg-focus')?.value || 'relaxation',
+        },
+        instructor: {
+            name: $('#sg-instructor-name')?.value || '',
+            personality: $('#sg-personality')?.value || 'gentle',
+        },
+        session: {
+            duration: parseInt($('#sg-duration')?.value || '15'),
+            poseCount: parseInt($('#sg-pose-count')?.value || '12'),
+            narrationStyle: $('#sg-narration')?.value || 'short',
+            breathCues: $('#sg-breath-cues')?.checked ?? true,
+            transitionCues: $('#sg-transitions')?.checked ?? true,
+            includeIntro: $('#sg-intro')?.checked ?? true,
+            includeOutro: $('#sg-outro')?.checked ?? true,
+        },
+        poses: {
+            flow: $('#sg-flow')?.value || 'progressive',
+            mustInclude: ['savasana'],
+            excludePoses: [],
+        },
+        ai: {
+            temperature: 0.7,
+            creativity: 'balanced',
+        },
+    };
+}
+
+/**
+ * Apply a template to the form fields
+ */
+function applyTemplateToForm(templateId) {
+    const templateConfig = applyTemplate(templateId, {});
+    if (!templateConfig) return;
+
+    // Fill form selects
+    if (templateConfig.category) setSelectValue('sg-category', templateConfig.category);
+    if (templateConfig.niche?.level) setSelectValue('sg-level', templateConfig.niche.level);
+    if (templateConfig.niche?.audience) setSelectValue('sg-audience', templateConfig.niche.audience);
+    if (templateConfig.niche?.focusArea) setSelectValue('sg-focus', templateConfig.niche.focusArea);
+    if (templateConfig.session?.duration) setSelectValue('sg-duration', String(templateConfig.session.duration));
+    if (templateConfig.session?.poseCount) setSelectValue('sg-pose-count', String(templateConfig.session.poseCount));
+    if (templateConfig.session?.narrationStyle) setSelectValue('sg-narration', templateConfig.session.narrationStyle);
+    if (templateConfig.poses?.flow) setSelectValue('sg-flow', templateConfig.poses.flow);
+
+    // Checkboxes
+    const cbMap = {
+        'sg-breath-cues': templateConfig.session?.breathCues,
+        'sg-transitions': templateConfig.session?.transitionCues,
+        'sg-intro': templateConfig.session?.includeIntro,
+        'sg-outro': templateConfig.session?.includeOutro,
+    };
+    for (const [id, val] of Object.entries(cbMap)) {
+        const el = $(`#${id}`);
+        if (el && val !== undefined) el.checked = val;
+    }
+}
+
+function setSelectValue(id, value) {
+    const select = $(`#${id}`);
+    if (select) {
+        // Check if option exists
+        const option = select.querySelector(`option[value="${value}"]`);
+        if (option) select.value = value;
+    }
+}
+
+/**
+ * Render pose sequence badges 
+ */
+function renderPoseSequence(poses) {
+    const container = $('#sg-pose-list');
+    const badge = $('#sg-pose-badge');
+    if (!container) return;
+
+    container.innerHTML = poses.map((p, i) => {
+        const catIcon = {
+            warmup: '🔥', standing: '🧍', balancing: '⚖️', seated: '🪷',
+            floor: '🛏️', supine: '😴', inversion: '🙃', twist: '🔄',
+            backbend: '🌈', hip_opener: '🦋', cooldown: '❄️',
+            restorative: '🧘', breathing: '💨',
+        }[p.category] || '🧘';
+
+        return `<span class="badge" style="font-size: 10px; padding: 2px 6px;" title="${p.phase || ''}">${catIcon} ${p.name}</span>`;
+    }).join('');
+
+    if (badge) badge.textContent = `${poses.length}`;
+}
+
+/**
+ * Render generated script output + meta + audit
+ */
+function renderGeneratedScript(result) {
+    const outputEl = $('#sg-script-output');
+    const metaCard = $('#sg-meta-card');
+    const metaInfo = $('#sg-meta-info');
+    const actionsEl = $('#sg-actions');
+
+    if (!outputEl) return;
+
+    // Render script with compact styling
+    const lines = result.script.split('\n');
+    let html = '';
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) {
+            html += '<br>';
+        } else if (/^(Intro|Outro)$/i.test(trimmed)) {
+            html += `<div style="font-weight: 700; color: var(--accent-primary); font-size: 14px; margin-top: 12px; margin-bottom: 3px;">${escapeHtml(trimmed)}</div>`;
+        } else if (/^\d+\.\s/.test(trimmed)) {
+            html += `<div style="font-weight: 700; color: var(--accent-secondary, var(--accent-primary)); font-size: 13px; margin-top: 10px; margin-bottom: 3px;">${escapeHtml(trimmed)}</div>`;
+        } else {
+            html += `<div style="color: var(--text-primary); font-size: 12px; line-height: 1.55;">${escapeHtml(trimmed)}</div>`;
+        }
+    }
+    outputEl.innerHTML = `<div style="max-height: 400px; overflow-y: auto; padding: 6px;">${html}</div>`;
+
+    // Enable buttons
+    const copyBtn = $('#btn-sg-copy');
+    const regenBtn = $('#btn-sg-regenerate');
+    const useBtn = $('#btn-sg-use');
+    if (copyBtn) copyBtn.disabled = false;
+    if (regenBtn) regenBtn.disabled = false;
+    if (useBtn) useBtn.disabled = false;
+
+    // Meta info
+    if (metaCard && metaInfo && result.meta) {
+        const m = result.meta;
+        metaCard.style.display = '';
+        let metaHTML = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px 10px;">';
+        metaHTML += `<span>⏱️ ${(m.elapsedMs / 1000).toFixed(1)}s</span>`;
+        metaHTML += `<span>📏 ${m.scriptLength}ch</span>`;
+        metaHTML += `<span>🧘 ${m.poseCount} poses</span>`;
+        metaHTML += `<span>🤖 ${m.model || 'auto'}</span>`;
+        metaHTML += `<span>📂 ${m.category}</span>`;
+        metaHTML += `<span>🌐 ${m.language}</span>`;
+        if (m.auditResult) {
+            metaHTML += `<span>📊 ${m.auditResult.score}/100</span>`;
+            metaHTML += `<span>${m.auditResult.grade?.emoji || ''} ${m.auditResult.grade?.label || ''}</span>`;
+            metaHTML += `<span>${m.auditResult.status}</span>`;
+        }
+        if (m.duplicateWarning) {
+            metaHTML += `<span style="grid-column:1/-1;color:var(--accent-warm);">⚠️ ${m.duplicateWarning}</span>`;
+        }
+        if (m.fixResult) {
+            metaHTML += `<span style="grid-column:1/-1;">🔧 Auto-fixed: ${m.fixResult.changes.join(', ')}</span>`;
+        }
+        metaHTML += '</div>';
+        metaInfo.innerHTML = metaHTML;
+    }
+
+    if (actionsEl) actionsEl.style.display = '';
+
+    // Audit score card
+    if (result.auditResult) {
+        renderAuditScore(result.auditResult);
+    }
+
+    const statusEl = $('#sg-status');
+    if (statusEl) statusEl.style.display = 'none';
+}
+
+/**
+ * Render audit score card
+ */
+function renderAuditScore(auditResult) {
+    const card = $('#sg-audit-card');
+    const gradeEl = $('#sg-audit-grade');
+    const fillEl = $('#sg-audit-fill');
+    const detailsEl = $('#sg-audit-details');
+    const fixBtn = $('#btn-sg-fix-with-ai');
+    if (!card) return;
+
+    card.style.display = '';
+
+    const grade = auditResult.grade || { emoji: '—', letter: '?', label: 'Unknown' };
+    if (gradeEl) {
+        gradeEl.textContent = `${grade.emoji} ${auditResult.totalScore}/100`;
+        gradeEl.className = auditResult.totalScore >= 85 ? 'badge badge-success'
+            : auditResult.totalScore >= 60 ? 'badge badge-warm' : 'badge';
+        if (auditResult.totalScore < 60) {
+            gradeEl.style.cssText = 'background:rgba(239,68,68,0.12);color:var(--accent-danger);border-color:rgba(239,68,68,0.2);';
+        }
+    }
+
+    if (fillEl) {
+        const pct = Math.min(100, auditResult.totalScore);
+        fillEl.style.width = `${pct}%`;
+        fillEl.style.background = pct >= 85 ? 'linear-gradient(90deg,#10b981,#34d399)'
+            : pct >= 60 ? 'linear-gradient(90deg,#f59e0b,#fbbf24)'
+            : 'linear-gradient(90deg,#ef4444,#f87171)';
+    }
+
+    if (detailsEl && auditResult.phase1) {
+        let html = '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">';
+        for (const check of auditResult.phase1.checks) {
+            const icon = check.status === 'pass' ? '✅' : check.status === 'warn' ? '⚠️' : '❌';
+            html += `<span style="font-size:10px;">${icon} ${check.name}</span>`;
+        }
+        html += '</div>';
+        if (auditResult.phase2?.feedback) {
+            html += `<div style="font-style:italic;font-size:10px;margin-top:3px;">💡 ${escapeHtml(auditResult.phase2.feedback)}</div>`;
+        }
+        detailsEl.innerHTML = html;
+    }
+
+    // Show fix button if score is low
+    if (fixBtn) {
+        fixBtn.style.display = auditResult.totalScore < 75 ? '' : 'none';
+    }
+}
+
+// ============================================================
+// FLOATING AI AGENT — Toggle & Fix Integration
+// ============================================================
+
+function initFloatingAgent() {
+    const fab = $('#sg-agent-fab');
+    const panel = $('#sg-agent-panel');
+    const closeBtn = $('#btn-sg-agent-close');
+    const fixBtn = $('#btn-sg-fix-with-ai');
+
+    if (!fab || !panel) return;
+
+    fab.addEventListener('click', () => {
+        const isOpen = panel.style.display !== 'none';
+        panel.style.display = isOpen ? 'none' : '';
+        fab.textContent = isOpen ? '🧠' : '✕';
+    });
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            panel.style.display = 'none';
+            fab.textContent = '🧠';
+        });
+    }
+
+    // Fix with AI button
+    if (fixBtn) {
+        fixBtn.addEventListener('click', () => {
+            panel.style.display = '';
+            fab.textContent = '✕';
+            const chatInput = $('#sg-chat-input');
+            const sendBtn = $('#btn-sg-chat-send');
+            if (chatInput && sendBtn) {
+                chatInput.value = 'Script vừa tạo bị điểm thấp. Hãy phân tích lỗi và gợi ý cách sửa. Nếu có thể hãy tự động fix giúp tôi.';
+                sendBtn.click();
+            }
+        });
     }
 }
 
