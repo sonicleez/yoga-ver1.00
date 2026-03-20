@@ -27,15 +27,16 @@ export function runRuleAudit(script, config) {
     const sections = script.match(sectionPattern) || [];
     const expectedPoses = config.session?.poseCount || 10;
 
-    if (sections.length >= expectedPoses * 0.7) {
+    if (sections.length >= expectedPoses - 1) {
         score += 8;
         checks.push({ name: 'Section Format', score: 8, max: 8, status: 'pass', detail: `${sections.length} numbered sections found` });
-    } else if (sections.length > 0) {
+    } else if (sections.length >= expectedPoses * 0.7) {
         const pts = Math.round((sections.length / expectedPoses) * 8);
         score += pts;
-        checks.push({ name: 'Section Format', score: pts, max: 8, status: 'warn', detail: `${sections.length}/${expectedPoses} sections found` });
+        checks.push({ name: 'Section Format', score: pts, max: 8, status: 'warn', detail: `Only ${sections.length}/${expectedPoses} sections found. Script truncated?` });
     } else {
-        checks.push({ name: 'Section Format', score: 0, max: 8, status: 'fail', detail: 'No numbered sections found' });
+        score -= 30; // Massive penalty for abruptly skipping chunks
+        checks.push({ name: 'Section Format', score: -30, max: 8, status: 'fail', detail: `CRITICAL: Skipped too many poses! Expected ${expectedPoses}, got ${sections.length}` });
     }
 
     // 2. INTRO CHECK — Has an introduction (max 5 pts)

@@ -184,10 +184,9 @@ export async function generateScript(config, apiKey, callbacks = {}) {
             mergedConfig.ai.temperature + (tempMap[mergedConfig.ai.creativity] || 0)
         ));
 
-        // 8. Generate!
         let script = await generateText(systemPrompt, userPrompt, apiKey, {
             model,
-            maxTokens: 4096,
+            maxTokens: 8192, // Increased safely for long scripts
             temperature,
             provider,
         });
@@ -221,6 +220,8 @@ export async function generateScript(config, apiKey, callbacks = {}) {
         log.info(`✅ Complete in ${(elapsed / 1000).toFixed(1)}s`);
         callbacks.onStatus?.('Script generated!');
 
+        const actualPoseCount = (script.match(/^\d+\.\s+.+/gm) || []).length;
+
         // 13. Build metadata
         const meta = {
             generatedAt: new Date().toISOString(),
@@ -228,7 +229,7 @@ export async function generateScript(config, apiKey, callbacks = {}) {
             provider,
             model,
             temperature,
-            poseCount: poseSequence.length,
+            poseCount: actualPoseCount > 0 ? actualPoseCount : poseSequence.length,
             scriptLength: script.length,
             language: mergedConfig.language,
             category: mergedConfig.category,

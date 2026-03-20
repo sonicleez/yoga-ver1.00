@@ -44,6 +44,7 @@ RULES:
 - DO NOT include any headers, markdown, bullet points, or special formatting
 - DO NOT include section titles like "## Warm-up" — just the pose names
 - The length of each narration block MUST strictly follow the NARRATION STYLE and NARRATION OPTIONS guides
+- You MUST generate the narration for ALL requested poses provided in the sequence. DO NOT skip any poses. DO NOT summarize. DO NOT stop early. Failure to output the complete sequence is unacceptable.
 - Include breath cues naturally woven into narration (if enabled)
 - Include smooth transitions between poses (if enabled)
 - EXPAND YOUR LEXICON. Do not use repetitive phrases. Provide rich, highly detailed language to ensure a high-quality, high-token script.
