@@ -5,6 +5,10 @@
  * Easily expandable to 200+ by adding entries to POSES_DB.
  */
 
+import { EXTENDED_POSES } from './poses_extended.js';
+import { EXTENDED_POSES_2 } from './poses_extended_2.js';
+import { EXTENDED_POSES_3 } from './poses_extended_3.js';
+
 // ============================================================
 // POSE CATEGORIES
 // ============================================================
@@ -1128,6 +1132,11 @@ export const POSES_DB = {
             beginner: 'Step your feet wide apart and fold forward between your legs.',
         },
     },
+
+    // Include the extended database
+    ...EXTENDED_POSES,
+    ...EXTENDED_POSES_2,
+    ...EXTENDED_POSES_3,
 };
 
 // ============================================================
