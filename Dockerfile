@@ -26,9 +26,12 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Expose port 80 and 3000
 EXPOSE 80 3000
 
+# Install curl for reliable healthchecks
+RUN apk add --no-cache curl
+
 # Add Healthcheck to ensure container is ready for Traefik routing
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost:80/ || exit 1
+  CMD curl -f http://127.0.0.1:80/ || exit 1
 
 # Run NGINX in foreground
 CMD ["nginx", "-g", "daemon off;"]
