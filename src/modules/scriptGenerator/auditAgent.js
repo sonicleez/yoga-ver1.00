@@ -74,8 +74,8 @@ export function runRuleAudit(script, config) {
     // 5. LENGTH CHECK — Script isn't too short or too long (max 6 pts)
     const wordCount = script.split(/\s+/).length;
     const durationMin = config.session?.duration || 15;
-    const expectedMin = durationMin * 10; // ~10 words per minute minimum
-    const expectedMax = durationMin * 35; // ~35 words per minute maximum
+    const expectedMin = durationMin * 15; // ~15 words per minute minimum
+    const expectedMax = durationMin * 120; // ~120 words per minute maximum (to allow highly detailed scripts)
 
     if (wordCount >= expectedMin && wordCount <= expectedMax) {
         score += 6;
@@ -148,7 +148,7 @@ Respond ONLY in this exact JSON format:
 }
 \`\`\`
 
-Be honest but constructive. A generic bedtime yoga script should score 5-6, an excellent one 8-9.
+Be honest but constructive. Grade the script strictly on its own merits. An excellent, highly detailed, and immersive script should score 8-10. A generic or repetitive script should score 5-6.
 Match your feedback language to the script language (if script is Vietnamese, write in Vietnamese).`;
 
 /**

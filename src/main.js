@@ -2576,7 +2576,8 @@ function initScriptGenerator() {
 
         if (item) {
             item.className = `sg-batch-item ${info.status === 'done' ? 'success' : 'running'}`;
-            item.querySelector('.sg-batch-item-label').textContent = info.label || `Script ${idx + 1}`;
+            const displayLabel = info.status === 'done' ? info.label : `${info.label} — ${info.status}`;
+            item.querySelector('.sg-batch-item-label').textContent = displayLabel;
             if (info.score) {
                 const scoreEl = item.querySelector('.sg-batch-item-score');
                 scoreEl.textContent = `${info.score}/100`;
