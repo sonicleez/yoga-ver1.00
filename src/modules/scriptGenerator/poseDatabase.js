@@ -8,6 +8,11 @@
 import { EXTENDED_POSES } from './poses_extended.js';
 import { EXTENDED_POSES_2 } from './poses_extended_2.js';
 import { EXTENDED_POSES_3 } from './poses_extended_3.js';
+import { EXTENDED_POSES_4 } from './poses_extended_4.js';
+import { EXTENDED_POSES_5 } from './poses_extended_5.js';
+import { EXTENDED_POSES_6 } from './poses_extended_6.js';
+import { EXTENDED_POSES_7 } from './poses_extended_7.js';
+import { EXTENDED_POSES_8 } from './poses_extended_8.js';
 
 // ============================================================
 // POSE CATEGORIES
@@ -1137,6 +1142,11 @@ export const POSES_DB = {
     ...EXTENDED_POSES,
     ...EXTENDED_POSES_2,
     ...EXTENDED_POSES_3,
+    ...EXTENDED_POSES_4,
+    ...EXTENDED_POSES_5,
+    ...EXTENDED_POSES_6,
+    ...EXTENDED_POSES_7,
+    ...EXTENDED_POSES_8,
 };
 
 // ============================================================
