@@ -2,6 +2,8 @@
  * Vercel Serverless Proxy: Vertex Key API
  * Routes: /api/vertex-key/* → https://vertex-key.com/*
  */
+export const maxDuration = 60;
+
 export default async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -13,10 +15,18 @@ export default async function handler(req, res) {
   }
 
   try {
-    const fullUrl = req.url;
-    const proxyPath = fullUrl.replace(/^\/api\/vertex-key\/?/, '');
+    let proxyPath = '';
+    const query = { ...(req.query || {}) };
 
-    const targetUrl = `https://vertex-key.com/${proxyPath}`;
+    if (query.path) {
+      proxyPath = Array.isArray(query.path) ? query.path.join('/') : query.path;
+      delete query.path;
+    } else {
+      proxyPath = req.url.replace(/^\/api\/vertex-key\/?/, '').split('?')[0];
+    }
+    
+    const qs = new URLSearchParams(query).toString();
+    const targetUrl = `https://vertex-key.com/${proxyPath}${qs ? '?' + qs : ''}`;
     console.log(`[VertexKey Proxy] ${req.method} → ${targetUrl}`);
 
     const forwardHeaders = {};
@@ -32,7 +42,7 @@ export default async function handler(req, res) {
     };
 
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      fetchOptions.body = JSON.stringify(req.body);
+      fetchOptions.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
     }
 
     const response = await fetch(targetUrl, fetchOptions);

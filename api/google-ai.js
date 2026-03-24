@@ -4,6 +4,8 @@
  * 
  * This avoids CORS issues when calling Google AI from the browser.
  */
+export const maxDuration = 60; // Max timeout for Vercel
+
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -15,11 +17,19 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Extract the path after /api/google-ai/
-    const fullUrl = req.url;
-    const proxyPath = fullUrl.replace(/^\/api\/google-ai\/?/, '');
+    // Extract the path correctly handling Vercel's rewrite query
+    let proxyPath = '';
+    const query = { ...(req.query || {}) };
 
-    const targetUrl = `https://generativelanguage.googleapis.com/${proxyPath}`;
+    if (query.path) {
+      proxyPath = Array.isArray(query.path) ? query.path.join('/') : query.path;
+      delete query.path;
+    } else {
+      proxyPath = req.url.replace(/^\/api\/google-ai\/?/, '').split('?')[0];
+    }
+    
+    const qs = new URLSearchParams(query).toString();
+    const targetUrl = `https://generativelanguage.googleapis.com/${proxyPath}${qs ? '?' + qs : ''}`;
     console.log(`[GoogleAI Proxy] ${req.method} → ${targetUrl}`);
 
     // Forward headers (exclude host/connection)
@@ -37,7 +47,7 @@ export default async function handler(req, res) {
 
     // Forward body for POST/PUT
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      fetchOptions.body = JSON.stringify(req.body);
+      fetchOptions.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
     }
 
     const response = await fetch(targetUrl, fetchOptions);

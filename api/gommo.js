@@ -4,6 +4,8 @@
  * 
  * Gommo uses x-www-form-urlencoded body format.
  */
+export const maxDuration = 60;
+
 export default async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -15,10 +17,18 @@ export default async function handler(req, res) {
   }
 
   try {
-    const fullUrl = req.url;
-    const proxyPath = fullUrl.replace(/^\/api\/gommo\/?/, '');
+    let proxyPath = '';
+    const query = { ...(req.query || {}) };
 
-    const targetUrl = `https://api.gommo.net/${proxyPath}`;
+    if (query.path) {
+      proxyPath = Array.isArray(query.path) ? query.path.join('/') : query.path;
+      delete query.path;
+    } else {
+      proxyPath = req.url.replace(/^\/api\/gommo\/?/, '').split('?')[0];
+    }
+    
+    const qs = new URLSearchParams(query).toString();
+    const targetUrl = `https://api.gommo.net/${proxyPath}${qs ? '?' + qs : ''}`;
     console.log(`[Gommo Proxy] ${req.method} → ${targetUrl}`);
 
     const forwardHeaders = {};
@@ -44,7 +54,7 @@ export default async function handler(req, res) {
           fetchOptions.body = req.body;
         }
       } else {
-        fetchOptions.body = JSON.stringify(req.body);
+        fetchOptions.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
       }
     }
 
