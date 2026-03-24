@@ -211,6 +211,7 @@ export function getCurrentItem() {
  * @param {Object} callbacks
  * @param {Function} callbacks.onProgress - (completedCount, totalCount, currentItem) => void
  * @param {Function} callbacks.onItemComplete - (item, result) => void
+ * @param {Function} callbacks.onItemPartial - (item, partialResult) => void
  * @param {Function} callbacks.onItemError - (item, error) => void
  * @param {Function} callbacks.onQueueComplete - (stats) => void
  * @param {Function} callbacks.onQueueStart - (totalCount) => void
@@ -218,6 +219,7 @@ export function getCurrentItem() {
 export function setCallbacks(callbacks = {}) {
     onProgressCallback = callbacks.onProgress || null;
     onItemCompleteCallback = callbacks.onItemComplete || null;
+    onItemPartialCallback = callbacks.onItemPartial || null;
     onItemErrorCallback = callbacks.onItemError || null;
     onQueueCompleteCallback = callbacks.onQueueComplete || null;
     onQueueStartCallback = callbacks.onQueueStart || null;
@@ -272,7 +274,16 @@ async function processQueue() {
             const result = await generateSceneImages(
                 nextItem.framePrompt,
                 nextItem.options.apiKey,
-                nextItem.options
+                nextItem.options,
+                (partialResult) => {
+                    // Update intermediate result
+                    nextItem.result = { ...nextItem.result, ...partialResult };
+                    if (options && typeof options.onItemPartial === 'function') {
+                        options.onItemPartial(nextItem, partialResult);
+                    } else if (onItemPartialCallback) {
+                        onItemPartialCallback(nextItem, partialResult);
+                    }
+                }
             );
 
             if (isCancelled) {
