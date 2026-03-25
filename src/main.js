@@ -1170,24 +1170,6 @@ function initGalleryPanel() {
                 if (endTimerEl) endTimerEl.textContent = `${elapsed}s`;
             }, 100);
         },
-        onItemPartial: (item, partialResult) => {
-            log.info(`✅ [App/Queue] Partial item complete: "${item.sceneName}"`);
-            
-            const state = getState();
-            const images = { ...(state.generatedImages || {}) };
-            const existing = images[item.sceneIndex] || {};
-            const merged = { ...existing };
-            if (partialResult.start !== undefined) merged.start = partialResult.start;
-            if (partialResult.end !== undefined) merged.end = partialResult.end;
-            images[item.sceneIndex] = merged;
-            setState('generatedImages', images);
-            
-            let elapsedSec = null;
-            if (_genStartTimes[item.sceneIndex]) {
-                elapsedSec = ((Date.now() - _genStartTimes[item.sceneIndex]) / 1000).toFixed(1);
-            }
-            updateGalleryFrame(item.sceneIndex, partialResult, elapsedSec);
-        },
         onItemComplete: (item, result) => {
             log.info(`✅ [App/Queue] Item complete: "${item.sceneName}" (scene #${item.sceneIndex})`);
             if (_genTimers[item.sceneIndex]) {

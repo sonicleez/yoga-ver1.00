@@ -775,7 +775,7 @@ export async function chatCompletion(systemPrompt, userPrompt, apiKey, options =
 /**
  * Generate start + end frame images for a scene.
  */
-export async function generateSceneImages(framePrompt, apiKey, options = {}, onIntermediate = null) {
+export async function generateSceneImages(framePrompt, apiKey, options = {}) {
     log.group(`🎬[SceneImages] Scene #${framePrompt.sceneIndex}: "${framePrompt.sceneName}"`);
     log.time(`⏱️ Scene "${framePrompt.sceneName}" total`);
 
@@ -804,10 +804,6 @@ export async function generateSceneImages(framePrompt, apiKey, options = {}, onI
             effectiveOptions
         );
         log.debug(`✅[SceneImages] START frame done — base64: ${startResult.base64 ? Math.round(startResult.base64.length / 1024) + 'KB' : 'null'}, blobUrl: ${startResult.blobUrl ? 'yes' : 'no'}`);
-
-        if (onIntermediate && startResult) {
-            onIntermediate({ start: startResult });
-        }
 
         if (!options.targetFrame) {
             // Rate limit delay
