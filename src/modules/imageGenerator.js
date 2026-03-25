@@ -271,12 +271,16 @@ async function generateImageGoogleAI(prompt, apiKey, options = {}) {
 
     const url = `${API_BASE}/${model}:generateContent`;
     log.debug(`🔗 [GoogleAI] URL: ${url} (key=***)`);
+    const bodyStr = JSON.stringify(body);
+    log.info(`📦 [GoogleAI] Request body size: ${Math.round(bodyStr.length / 1024)}KB`);
+    const fetchStart = Date.now();
 
     const response = await fetch(`${API_BASE}/${model}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: bodyStr,
     });
+    log.info(`📡 [GoogleAI] Fetch completed in ${((Date.now() - fetchStart) / 1000).toFixed(1)}s → status: ${response.status}`);
 
     log.debug(`📡 [GoogleAI] Response status: ${response.status} ${response.statusText}`);
 
@@ -364,6 +368,9 @@ async function generateImageVertexKey(prompt, apiKey, options = {}) {
 
     const url = `${VERTEX_BASE}/images/generations`;
     log.debug(`🔗 [VertexKey] URL: ${url} (images/generations endpoint)`);
+    const bodyStr = JSON.stringify(body);
+    log.info(`📦 [VertexKey] Request body size: ${Math.round(bodyStr.length / 1024)}KB`);
+    const fetchStart = Date.now();
 
     const response = await fetch(url, {
         method: 'POST',
@@ -371,8 +378,9 @@ async function generateImageVertexKey(prompt, apiKey, options = {}) {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${apiKey}`,
         },
-        body: JSON.stringify(body),
+        body: bodyStr,
     });
+    log.info(`📡 [VertexKey] Fetch completed in ${((Date.now() - fetchStart) / 1000).toFixed(1)}s → status: ${response.status}`);
 
     log.debug(`📡 [VertexKey] Response status: ${response.status} ${response.statusText}`);
 
@@ -588,11 +596,15 @@ async function generateImageGommo(prompt, apiKey, options = {}) {
 
     // Helper: call Create Image then poll for result
     async function createAndPoll(requestBody) {
+        const reqStr = requestBody.toString();
+        log.info(`📦 [Gommo] Create request body size: ${Math.round(reqStr.length / 1024)}KB`);
+        const createStart = Date.now();
         const createRes = await fetch(`${GOMMO_BASE}/ai/generateImage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: requestBody.toString(),
+            body: reqStr,
         });
+        log.info(`📡 [Gommo] Create request completed in ${((Date.now() - createStart) / 1000).toFixed(1)}s → status: ${createRes.status}`);
 
         const data = await createRes.json();
         if (!createRes.ok || data.error) {
@@ -687,8 +699,12 @@ async function generateImageGommo(prompt, apiKey, options = {}) {
         log.debug(`🔗 [Gommo] Image URL: ${imageUrl.substring(0, 80)}...`);
 
         // Download image to base64 for IndexedDB storage
+        const dlStart = Date.now();
+        log.info(`⬇️ [Gommo] Downloading generated image from URL...`);
         const imgRes = await fetch(imageUrl);
+        log.info(`⬇️ [Gommo] Download response in ${((Date.now() - dlStart) / 1000).toFixed(1)}s → status: ${imgRes.status}`);
         const imgBlob = await imgRes.blob();
+        log.info(`⬇️ [Gommo] Blob size: ${Math.round(imgBlob.size / 1024)}KB`);
 
         let base64 = null;
         try {
