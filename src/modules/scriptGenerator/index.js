@@ -147,6 +147,9 @@ export async function generateScript(config, apiKey, callbacks = {}) {
         log.info(`🧘 Pose sequence: ${poseSequence.map(p => p.name).join(' → ')}`);
         callbacks.onPoseSequence?.(poseSequence);
 
+        // Save pose names for audit cross-checking
+        mergedConfig._poseNames = poseSequence.map(p => p.name);
+
         // 4. Generate variation profile (Phase 2)
         callbacks.onStatus?.('Creating unique variation profile...');
         const existingFingerprints = getFingerprints();
@@ -166,12 +169,14 @@ export async function generateScript(config, apiKey, callbacks = {}) {
         const systemPrompt = buildSystemPrompt(mergedConfig);
         const variationHints = variationToPromptHints(variationProfile);
         const smartContext = buildSmartContext(existingFingerprints, 8);
-        const userPrompt = buildUserPrompt(mergedConfig, poseSequence)
-            + '\n\n' + variationHints
-            + (smartContext ? '\n\n' + smartContext : '');
+        // Place variation hints BEFORE the main user prompt so they don't dilute pose enforcement
+        const userPrompt = (variationHints ? variationHints + '\n\n' : '')
+            + (smartContext ? smartContext + '\n\n' : '')
+            + buildUserPrompt(mergedConfig, poseSequence);
 
         log.debug(`📝 System prompt: ${systemPrompt.length} chars`);
-        log.debug(`📝 User prompt: ${userPrompt.length} chars (incl. variation + context)`);
+        log.debug(`📝 User prompt: ${userPrompt.length} chars (variation + context + poses)`);
+        log.info(`📝 Pose count mandate: ${poseSequence.length} poses`);
 
         callbacks.onStatus?.('Generating script with AI...');
 
@@ -184,9 +189,22 @@ export async function generateScript(config, apiKey, callbacks = {}) {
             mergedConfig.ai.temperature + (tempMap[mergedConfig.ai.creativity] || 0)
         ));
 
+        // Dynamic maxTokens — scale based on pose count and narration style
+        const narrationMultiplier = {
+            minimal: 300,    // ~300 tokens per pose
+            short: 450,      // ~450 tokens per pose
+            detailed: 700,   // ~700 tokens per pose
+            poetic: 750,     // ~750 tokens per pose
+        };
+        const tokensPerPose = narrationMultiplier[mergedConfig.session?.narrationStyle] || 450;
+        const introOutroTokens = 600; // Intro + Outro
+        const calculatedTokens = (poseSequence.length * tokensPerPose) + introOutroTokens;
+        const maxTokens = Math.min(16384, Math.max(4096, calculatedTokens));
+        log.info(`📊 maxTokens calculated: ${maxTokens} (${poseSequence.length} poses × ${tokensPerPose} + ${introOutroTokens} overhead)`);
+
         let script = await generateText(systemPrompt, userPrompt, apiKey, {
             model,
-            maxTokens: 8192, // Increased safely for long scripts
+            maxTokens,
             temperature,
             provider,
         });

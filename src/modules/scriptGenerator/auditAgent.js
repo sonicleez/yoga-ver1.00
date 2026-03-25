@@ -27,16 +27,44 @@ export function runRuleAudit(script, config) {
     const sections = script.match(sectionPattern) || [];
     const expectedPoses = config.session?.poseCount || 10;
 
-    if (sections.length >= expectedPoses - 1) {
+    if (sections.length >= expectedPoses) {
         score += 8;
-        checks.push({ name: 'Section Format', score: 8, max: 8, status: 'pass', detail: `${sections.length} numbered sections found` });
+        checks.push({ name: 'Section Format', score: 8, max: 8, status: 'pass', detail: `${sections.length}/${expectedPoses} numbered sections found` });
+    } else if (sections.length >= expectedPoses - 1) {
+        score += 5;
+        checks.push({ name: 'Section Format', score: 5, max: 8, status: 'warn', detail: `${sections.length}/${expectedPoses} sections — missing ${expectedPoses - sections.length} pose(s)` });
     } else if (sections.length >= expectedPoses * 0.7) {
-        const pts = Math.round((sections.length / expectedPoses) * 8);
+        const pts = Math.round((sections.length / expectedPoses) * 5);
         score += pts;
         checks.push({ name: 'Section Format', score: pts, max: 8, status: 'warn', detail: `Only ${sections.length}/${expectedPoses} sections found. Script truncated?` });
     } else {
         score -= 30; // Massive penalty for abruptly skipping chunks
         checks.push({ name: 'Section Format', score: -30, max: 8, status: 'fail', detail: `CRITICAL: Skipped too many poses! Expected ${expectedPoses}, got ${sections.length}` });
+    }
+
+    // 1b. POSE NAME CHECK — Verify requested pose names appear in script (max 7 pts bonus)
+    if (config.poses?.selectedPoses?.length > 0 || config._poseNames?.length > 0) {
+        const poseNames = config._poseNames || [];
+        const scriptLower = script.toLowerCase();
+        let matchCount = 0;
+        const missingPoses = [];
+        for (const name of poseNames) {
+            if (scriptLower.includes(name.toLowerCase())) {
+                matchCount++;
+            } else {
+                missingPoses.push(name);
+            }
+        }
+        const matchRatio = poseNames.length > 0 ? matchCount / poseNames.length : 1;
+        if (matchRatio >= 0.9) {
+            score += 7;
+            checks.push({ name: 'Pose Name Match', score: 7, max: 7, status: 'pass', detail: `${matchCount}/${poseNames.length} requested pose names found in script` });
+        } else if (matchRatio >= 0.7) {
+            score += 4;
+            checks.push({ name: 'Pose Name Match', score: 4, max: 7, status: 'warn', detail: `${matchCount}/${poseNames.length} found. Missing: ${missingPoses.slice(0, 3).join(', ')}` });
+        } else {
+            checks.push({ name: 'Pose Name Match', score: 0, max: 7, status: 'fail', detail: `Only ${matchCount}/${poseNames.length} pose names found! Missing: ${missingPoses.slice(0, 5).join(', ')}` });
+        }
     }
 
     // 2. INTRO CHECK — Has an introduction (max 5 pts)

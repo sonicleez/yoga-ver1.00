@@ -13,8 +13,9 @@ import { POSE_CATEGORIES } from './poseDatabase.js';
 // FORMAT SPEC — output the AI must follow
 // ============================================================
 
-const OUTPUT_FORMAT_SPEC = `
-OUTPUT FORMAT REQUIREMENTS — STRICT:
+function buildOutputFormatSpec(poseCount) {
+    return `
+OUTPUT FORMAT REQUIREMENTS — ABSOLUTE STRICT MANDATORY:
 
 You MUST output the script in EXACTLY this format. No deviations.
 
@@ -22,21 +23,23 @@ Intro
 
 [Insert an engaging, welcoming introduction. Size depends on the narration style, but MUST fully set the tone and prepare the user.]
 
-1. [Pose Name]
+1. [Exact Pose Name from the sequence]
 
 [Insert comprehensive narration for this pose. Clearly describe how to enter the pose, what to feel, breath cues, and how to hold it. Size MUST match the requested narration style length.]
 
-2. [Pose Name]
+2. [Exact Pose Name from the sequence]
 
 [Insert comprehensive narration for this pose...]
 
-... (continue for all poses)
+... (continue for ALL ${poseCount} poses)
 
 Outro
 
 [Insert a thoughtful, relaxing closing narration. Include final breath cues and closing remarks.]
 
-RULES:
+CRITICAL RULES:
+- MANDATORY: You MUST write exactly ${poseCount} numbered poses (1 through ${poseCount}). Not ${poseCount - 1}, not ${poseCount - 2}. EXACTLY ${poseCount}.
+- MANDATORY: Use the EXACT pose name from the POSE SEQUENCE provided. Do NOT rename, merge, or substitute poses.
 - Each section separated by exactly ONE blank line
 - Pose names MUST be numbered: "1. Easy Pose", "2. Cat Cow", etc.
 - The FIRST section must be titled "Intro" (no number)
@@ -44,11 +47,30 @@ RULES:
 - DO NOT include any headers, markdown, bullet points, or special formatting
 - DO NOT include section titles like "## Warm-up" — just the pose names
 - The length of each narration block MUST strictly follow the NARRATION STYLE and NARRATION OPTIONS guides
-- You MUST generate the narration for ALL requested poses provided in the sequence. DO NOT skip any poses. DO NOT summarize. DO NOT stop early. Failure to output the complete sequence is unacceptable.
+- You MUST generate the narration for ALL ${poseCount} poses. DO NOT skip any poses. DO NOT summarize. DO NOT stop early.
 - Include breath cues naturally woven into narration (if enabled)
 - Include smooth transitions between poses (if enabled)
-- EXPAND YOUR LEXICON. Do not use repetitive phrases. Provide rich, highly detailed language to ensure a high-quality, high-token script.
+- EXPAND YOUR LEXICON. Do not use repetitive phrases. Provide rich, highly detailed language.
+- BEFORE finishing, mentally verify: Did I write Intro + ${poseCount} numbered poses + Outro? If not, continue writing.
 `;
+}
+
+// Category-specific creative directions
+const CATEGORY_CREATIVE_ANCHORS = {
+    bedtime: 'CREATIVE THEME: This is a BEDTIME/SLEEP session. Your tone must be dreamy, gentle, and deeply soothing. Use sleep-inducing imagery: moonlight, starry skies, floating clouds, warm blankets, gentle waves. Pace should be slow and hypnotic. Guide the practitioner toward deep relaxation and sleep.',
+    morning: 'CREATIVE THEME: This is a MORNING/ENERGIZING session. Your tone must be bright, invigorating, and uplifting. Use sunrise imagery: golden light, fresh breeze, new beginnings. Pace should gradually build energy. Wake up the body and mind progressively.',
+    kids: 'CREATIVE THEME: This is a KIDS session. Your tone must be playful, fun, and imaginative. Use animal sounds, stories, adventure themes, and colorful imagery. SHORT simple sentences. Make every pose feel like a game or adventure!',
+    meditation: 'CREATIVE THEME: This is a MEDITATION session. Your tone must be deeply contemplative, mindful, and present. Use stillness imagery: calm water, smooth stones, vast sky. Focus on inner awareness, breath, and mental clarity.',
+    power: 'CREATIVE THEME: This is a POWER/STRENGTH session. Your tone must be motivating, empowering, and athletic. Use strength imagery: mountain, fire, warrior spirit. Encourage holding longer, engaging muscles, building heat.',
+    senior: 'CREATIVE THEME: This is a SENIOR session. Your tone must be warm, patient, and reassuring. Always mention modifications. Use gentle imagery: garden, gentle stream, sunrise walk. Safety first, comfort always.',
+    office: 'CREATIVE THEME: This is an OFFICE/DESK YOGA session. Your tone must be practical, refreshing, and energizing. Reference workspace setting. Focus on tension spots: neck, shoulders, lower back, wrists.',
+    prenatal: 'CREATIVE THEME: This is a PRENATAL session. Your tone must be nurturing, empowering, and safe. Always mention modifications. Connect practice to the growing baby. Gentle, supportive imagery.',
+    yin: 'CREATIVE THEME: This is a YIN YOGA session. Your tone must be slow, meditative, and deeply introspective. Long holds, passive stretching. Guide attention inward. Use stillness and surrender imagery.',
+    recovery: 'CREATIVE THEME: This is a RECOVERY session. Your tone must be gentle, healing, and restorative. Focus on releasing tension, improving circulation, gentle movement. Use healing imagery.',
+    vinyasa: 'CREATIVE THEME: This is a VINYASA FLOW session. Your tone must be rhythmic, flowing, and dynamic. Link breath to movement. Create a continuous flow feeling. Use ocean wave imagery.',
+    hatha: 'CREATIVE THEME: This is a HATHA YOGA session. Your tone must be balanced, traditional, and instructive. Equal emphasis on strength and flexibility. Classic yoga language.',
+    family: 'CREATIVE THEME: This is a FAMILY session. Your tone must be inclusive, fun, and collaborative. Use activities everyone can do together. Encourage interaction between family members.',
+};
 
 // ============================================================
 // BUILD SYSTEM PROMPT
@@ -62,11 +84,21 @@ RULES:
  */
 export function buildSystemPrompt(config) {
     const parts = [];
+    const poseCount = config.session?.poseCount || 12;
 
-    // Role declaration
-    parts.push('You are an expert yoga instructor and script writer for guided yoga video narration.');
-    parts.push('Your task is to write a complete yoga video script with natural, engaging narration.');
+    // Role declaration — strong and specific
+    parts.push('You are a world-class yoga instructor and professional script writer for guided yoga video narration.');
+    parts.push('Your task is to write a COMPLETE yoga video script with natural, engaging, and THEMATICALLY CONSISTENT narration.');
+    parts.push(`You MUST write exactly ${poseCount} numbered poses with Intro and Outro. This is non-negotiable.`);
     parts.push('');
+
+    // Category-specific creative anchor (CRITICAL for on-topic scripts)
+    const category = config.category || 'general';
+    const anchor = CATEGORY_CREATIVE_ANCHORS[category];
+    if (anchor) {
+        parts.push(anchor);
+        parts.push('');
+    }
 
     // Language instruction
     const langCode = config.language || 'en';
@@ -95,7 +127,7 @@ export function buildSystemPrompt(config) {
 
     // Template-specific creative hints
     if (config._templateHints) {
-        parts.push(`CREATIVE DIRECTION: ${config._templateHints}`);
+        parts.push(`ADDITIONAL CREATIVE DIRECTION: ${config._templateHints}`);
         parts.push('');
     }
 
@@ -107,8 +139,8 @@ export function buildSystemPrompt(config) {
         parts.push('');
     }
 
-    // Output format
-    parts.push(OUTPUT_FORMAT_SPEC);
+    // Output format with dynamic pose count
+    parts.push(buildOutputFormatSpec(poseCount));
 
     return parts.join('\n');
 }
@@ -127,18 +159,19 @@ export function buildSystemPrompt(config) {
 export function buildUserPrompt(config, poseSequence) {
     const parts = [];
 
-    // Session overview
+    // Session overview — strong and clear
     const duration = config.session?.duration || 15;
     const lang = getLanguage(config.language || 'en');
     const flow = FLOW_STRATEGIES[config.poses?.flow] || FLOW_STRATEGIES.progressive;
 
-    parts.push(`Please write a ${duration}-minute ${config.category || 'yoga'} yoga script.`);
+    parts.push(`Write a COMPLETE ${duration}-minute ${config.category || 'yoga'} yoga script with EXACTLY ${poseSequence.length} poses.`);
     parts.push('');
 
     // Session details
     parts.push('SESSION DETAILS:');
     parts.push(`- Category: ${config.category || 'general yoga'}`);
     parts.push(`- Duration: ~${duration} minutes`);
+    parts.push(`- Total poses: ${poseSequence.length} (MANDATORY — do not write fewer)`);
     parts.push(`- Level: ${config.niche?.level || 'beginner'}`);
     parts.push(`- Audience: ${config.niche?.audience || 'adults'}`);
     parts.push(`- Focus: ${config.niche?.focusArea || 'general'}`);
@@ -155,9 +188,11 @@ export function buildUserPrompt(config, poseSequence) {
         parts.push('');
     }
 
-    // Pose sequence
-    parts.push(`POSE SEQUENCE (${poseSequence.length} poses):`);;
-    parts.push('Write narration for each pose in this exact order:');
+    // Pose sequence — explicit and numbered, minimal hints to save tokens
+    parts.push(`═══════════════════════════════════════`);
+    parts.push(`MANDATORY POSE SEQUENCE — ${poseSequence.length} POSES:`);
+    parts.push(`You MUST write narration for EVERY SINGLE pose below, in this EXACT order.`);
+    parts.push(`═══════════════════════════════════════`);
     parts.push('');
 
     for (let i = 0; i < poseSequence.length; i++) {
@@ -170,20 +205,26 @@ export function buildUserPrompt(config, poseSequence) {
         if (pose.phase) poseLine += ` [${pose.phase}]`;
         parts.push(poseLine);
 
-        // Add hints if available
-        if (hint) {
-            parts.push(`   Hint: ${hint}`);
-        }
-        // Duration hint
-        if (pose.duration) {
-            parts.push(`   Hold time: ${pose.duration.min}-${pose.duration.max} seconds`);
-        }
-        // Body parts
-        if (pose.bodyParts?.length) {
-            parts.push(`   Target: ${pose.bodyParts.join(', ')}`);
+        // Compact hints — one line only to save tokens
+        const hints = [];
+        if (hint) hints.push(hint);
+        if (pose.duration) hints.push(`Hold: ${pose.duration.min}-${pose.duration.max}s`);
+        if (hints.length > 0) {
+            parts.push(`   → ${hints.join(' | ')}`);
         }
     }
 
+    parts.push('');
+
+    // Final enforcement
+    parts.push(`═══════════════════════════════════════`);
+    parts.push(`⚠️ VERIFICATION CHECKLIST (complete ALL before finishing):`);
+    parts.push(`✅ Did I write "Intro" section? (REQUIRED)`);
+    parts.push(`✅ Did I write poses 1 through ${poseSequence.length}? (ALL ${poseSequence.length} REQUIRED)`);
+    parts.push(`✅ Did I write "Outro" section? (REQUIRED)`);
+    parts.push(`✅ Does each pose narration match the requested narration style length?`);
+    parts.push(`✅ Is the tone consistent with the ${config.category || 'yoga'} category?`);
+    parts.push(`═══════════════════════════════════════`);
     parts.push('');
 
     // Options checklist
