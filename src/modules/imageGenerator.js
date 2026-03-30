@@ -391,6 +391,13 @@ async function generateImageGoogleVertex(prompt, apiKey, options = {}) {
         const parts = apiKey.split('|');
         projectId = parts[0];
         token = parts.slice(1).join('|'); // In case token has |
+        log.debug(`📋 Parsed key: projectId="${projectId}" (${projectId.length} chars), token starts with "${token.substring(0, 10)}..."`);
+    }
+
+    // Validate projectId format
+    if (!projectId || projectId.length < 5) {
+        log.error(`❌ Invalid projectId: "${projectId}". Expected format: "projectId|AQ.xxx"`);
+        throw new Error(`Invalid API key format. ProjectId "${projectId}" is too short. Please use format: projectId|AQ.xxx`);
     }
 
     log.group(`🟢 [VertexAI] generateImageGoogleVertex()`);
