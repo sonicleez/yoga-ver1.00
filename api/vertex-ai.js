@@ -29,12 +29,9 @@ export default async function handler(req, res) {
     const targetUrl = `https://us-central1-aiplatform.googleapis.com/${proxyPath}${qs ? '?' + qs : ''}`;
     console.log(`[VertexAI Proxy] ${req.method} → ${targetUrl}`);
 
-    const forwardHeaders = {};
-    for (const [key, value] of Object.entries(req.headers)) {
-      if (!['host', 'connection', 'transfer-encoding'].includes(key.toLowerCase())) {
-        forwardHeaders[key] = value;
-      }
-    }
+    const forwardHeaders = {
+      'Content-Type': 'application/json',
+    };
 
     const fetchOptions = {
       method: req.method,
@@ -47,14 +44,12 @@ export default async function handler(req, res) {
 
     const response = await fetch(targetUrl, fetchOptions);
 
-    for (const [key, value] of response.headers.entries()) {
-      if (!['transfer-encoding', 'content-encoding'].includes(key.toLowerCase())) {
-        res.setHeader(key, value);
-      }
-    }
+    // Get response as text first (JSON with base64)
+    const responseText = await response.text();
 
-    const data = await response.arrayBuffer();
-    res.status(response.status).send(Buffer.from(data));
+    // Forward status and content-type
+    res.setHeader('Content-Type', 'application/json');
+    res.status(response.status).send(responseText);
   } catch (error) {
     console.error('[VertexAI Proxy] Error:', error);
     res.status(502).json({ error: 'Proxy error', message: error.message });
