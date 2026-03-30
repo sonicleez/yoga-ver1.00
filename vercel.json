@@ -5,6 +5,7 @@
   "rewrites": [
     { "source": "/api/google-ai/:path*", "destination": "/api/google-ai" },
     { "source": "/api/vertex-key/:path*", "destination": "/api/vertex-key" },
-    { "source": "/api/gommo/:path*", "destination": "/api/gommo" }
+    { "source": "/api/gommo/:path*", "destination": "/api/gommo" },
+    { "source": "/api/vertex-ai/:path*", "destination": "/api/vertex-ai" }
   ]
 }
