@@ -194,38 +194,66 @@ const POSE_FRAMES_DB = {
     },
 
     'supine twist': {
-        start: 'lying on back, knees bent, feet flat on mat, arms in T-shape',
-        end: 'lying on back, both bent knees dropped to left side, head turned right, arms in T-shape',
+        start: 'lying flat on back facing up, both knees bent pointing toward ceiling, feet flat on mat, both arms extended straight out to sides in T-shape, shoulders pressed into mat',
+        end: 'lying on back facing up, both bent knees dropped together to the left side touching the mat, right shoulder staying grounded, head turned to look right, arms still in T-shape flat on mat',
         transition: 'lets both knees drop gently to the left while keeping shoulders grounded',
         view: 'three-quarter-above',
     },
 
     'knees to chest': {
-        start: 'lying on back, legs extended straight, arms by sides',
-        end: 'lying on back, both knees hugged to chest, arms wrapped around shins',
+        start: 'lying flat on back facing up, legs extended straight along mat, arms resting by sides',
+        end: 'lying flat on back facing up, both knees bent and hugged tightly to chest, arms wrapped around shins, chin slightly tucked, lower back pressing into mat',
         transition: 'draws both knees up and hugs them tightly to chest',
         view: 'side',
     },
 
     'happy baby': {
-        start: 'lying on back, knees bent, feet flat on mat, arms at sides',
-        end: 'lying on back, knees drawn toward armpits, hands grabbing outside edges of feet, knees wide',
+        start: 'lying flat on back facing up, knees bent, feet flat on mat, arms resting at sides',
+        end: 'lying on back facing up, knees bent and drawn wide apart toward armpits, both hands grabbing the outer edges of feet from inside, soles of feet facing ceiling, lower back pressed into mat',
         transition: 'lifts feet up, grasps outer edges of feet, opens knees wide',
         view: 'three-quarter-above',
     },
 
     'legs up the wall': {
-        start: 'sitting sideways next to wall, about to swing legs up',
-        end: 'lying on back, legs straight up resting against wall, arms by sides, L-shape',
+        start: 'sitting on floor with right hip touching a wall, legs bent, preparing to swing legs up',
+        end: 'lying flat on back with buttocks touching wall, both legs extended straight up resting against the wall surface, body forming L-shape, arms relaxed at sides palms up',
         transition: 'swings both legs up the wall while lying back on mat',
         view: 'side',
     },
 
     'savasana': {
-        start: 'lying on back, adjusting position, arms moving to sides, legs straightening',
-        end: 'lying flat on back, legs apart, arms at sides palms up, completely relaxed',
+        start: 'lying flat on back facing up, legs extended straight, arms resting by sides with palms facing down, eyes open, head centered',
+        end: 'lying flat on back facing up, legs slightly apart and relaxed, arms at sides with palms facing up, eyes closed, face peaceful, completely still and relaxed like sleeping',
         transition: 'releases all muscle tension, body melts into the mat',
         view: 'three-quarter-above',
+    },
+
+    'ragdoll pose': {
+        start: 'standing tall with feet hip-width apart, knees slightly bent, arms hanging loosely at sides',
+        end: 'standing with upper body folded forward at hips, knees bent, torso hanging down toward thighs, arms dangling loosely toward floor, head and neck completely relaxed hanging heavy, swaying gently',
+        transition: 'bends knees and folds forward, letting upper body hang like a ragdoll',
+        view: 'side',
+    },
+
+    'wall straddle': {
+        start: 'sitting on floor with back near a wall, legs extended forward, about to lie back and swing legs up',
+        end: 'lying on back with buttocks against wall, legs spread wide apart in V-shape resting against the wall, arms relaxed at sides or overhead, hips open',
+        transition: 'lies back and swings legs up the wall, then opens legs wide into straddle',
+        view: 'front',
+    },
+
+    'reclined figure four': {
+        start: 'lying flat on back facing up, both knees bent, feet flat on mat, arms at sides',
+        end: 'lying on back, right ankle crossed over left thigh creating figure-4 shape, hands clasped behind left thigh pulling both legs toward chest, head and shoulders on mat',
+        transition: 'crosses right ankle over left thigh, threads hands behind left thigh, pulls legs toward chest',
+        view: 'side',
+    },
+
+    'figure four': {
+        start: 'lying flat on back facing up, both knees bent, feet flat on mat, arms at sides',
+        end: 'lying on back, right ankle crossed over left thigh creating figure-4 shape, hands clasped behind left thigh pulling both legs toward chest, head and shoulders on mat',
+        transition: 'crosses right ankle over left thigh, threads hands behind left thigh, pulls legs toward chest',
+        view: 'side',
     },
 };
 
