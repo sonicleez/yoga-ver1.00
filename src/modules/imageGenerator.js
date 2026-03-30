@@ -138,7 +138,7 @@ export const PROVIDERS = {
             },
         },
     },
-    'google-vertex': {
+    'vertex-ai': {
         name: 'Google Vertex AI (Imagen)',
         description: 'Vertex AI Imagen 4.0 - High quality image generation',
         keyPrefix: 'AQ.',
@@ -201,7 +201,7 @@ export async function generateImage(prompt, apiKey, options = {}) {
         return generateImageVertexKey(prompt, apiKey, options);
     } else if (provider === 'gommo') {
         return generateImageGommo(prompt, apiKey, options);
-    } else if (provider === 'google-vertex') {
+    } else if (provider === 'vertex-ai') {
         return generateImageGoogleVertex(prompt, apiKey, options);
     }
     return generateImageGoogleAI(prompt, apiKey, options);
@@ -257,7 +257,7 @@ export async function verifyApiKey(apiKey, provider = null) {
 
 /**
  * Auto-detect provider from API key format
- * google-vertex: AQ.* token — Vertex AI Imagen API
+ * vertex-ai: AQ.* token — Vertex AI Imagen API
  * google-ai: AIzaSy... key — default if provider not forced
  * vertex-key: vai-... key
  * gommo: domain|accessToken
@@ -265,7 +265,7 @@ export async function verifyApiKey(apiKey, provider = null) {
 function detectProvider(apiKey) {
     if (apiKey.includes('|')) return 'gommo';
     if (apiKey.startsWith('vai-')) return 'vertex-key';
-    if (apiKey.startsWith('AQ.')) return 'google-vertex';
+    if (apiKey.startsWith('AQ.')) return 'vertex-ai';
     // AIzaSy keys default to google-ai
     return 'google-ai';
 }
