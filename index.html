@@ -222,7 +222,7 @@
 
                             <div class="glass-card">
                                 <h3 class="card-title">📐 Image Settings</h3>
-                                <p class="card-desc">Tỉ lệ và độ phân giải</p>
+                                <p class="card-desc">Tỉ lệ và tốc độ tạo ảnh</p>
                                 <div class="settings-row">
                                     <label class="label">Aspect Ratio</label>
                                     <select id="aspect-ratio" class="select">
@@ -230,6 +230,15 @@
                                         <option value="9:16">9:16 (Portrait)</option>
                                         <option value="1:1">1:1 (Square)</option>
                                         <option value="4:3">4:3 (Standard)</option>
+                                    </select>
+                                </div>
+                                <div class="settings-row">
+                                    <label class="label">Delay giữa mỗi ảnh</label>
+                                    <select id="gen-delay" class="select">
+                                        <option value="4000">4 giây (nhanh)</option>
+                                        <option value="15000" selected>15 giây (khuyên dùng)</option>
+                                        <option value="30000">30 giây</option>
+                                        <option value="60000">1 phút</option>
                                     </select>
                                 </div>
                             </div>

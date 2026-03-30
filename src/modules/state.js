@@ -16,7 +16,7 @@ const LS_PREFIX = 'yk_';
 // Keys that should be persisted to localStorage
 const PERSIST_KEYS = [
     'currentStep', 'apiKeys', 'provider', 'imageModel', 'stylePreset',
-    'aspectRatio', 'characterDescription', 'environment',
+    'aspectRatio', 'genDelay', 'characterDescription', 'environment',
     'parsedScript', 'framePrompts', 'referenceImages', 'envReferenceImages', 'thumbnail'
 ];
 
@@ -34,6 +34,7 @@ const state = {
     imageModel: '',
     stylePreset: '3d-cartoon',
     aspectRatio: '16:9',
+    genDelay: 15000,  // ms delay between image generations
     characterDescription: 'a cute 3D cartoon girl with long purple braided hair in a high bun, wearing a white sleeveless crop top with gold accents and white yoga leggings with gold trim, barefoot',
     environment: 'on a purple yoga mat, clean white background, minimal scene',
     parsedScript: null,

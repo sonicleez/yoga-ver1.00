@@ -6,7 +6,7 @@
 import { parseScript, formatSceneLabel, getScriptStats, analyzeScene } from './modules/scriptParser.js';
 import { generateAllFramePrompts, generateFramePrompts, STYLE_PRESETS, DEFAULT_SETTINGS } from './modules/promptGenerator.js';
 import { generateImage, base64ToBlobUrl, generateSceneImages, PROVIDERS, verifyApiKey } from './modules/imageGenerator.js';
-import { enqueue, enqueueAll, cancelAll, clearAll, isQueueProcessing, setCallbacks, getQueueStatus } from './modules/imageQueue.js';
+import { enqueue, enqueueAll, cancelAll, clearAll, isQueueProcessing, setCallbacks, getQueueStatus, setConfig } from './modules/imageQueue.js';
 import { getState, setState, onStateChange, restoreAllState, clearAllState, clearProjectState, getActiveApiKey, setApiKey } from './modules/state.js';
 import { log } from './modules/logger.js';
 import { initThumbnailStudio, renderThumbnailPoseSelectors } from './modules/thumbnailGenerator.js';
@@ -482,6 +482,14 @@ function rebuildFromState() {
         if (el) el.value = state.aspectRatio;
     }
 
+    // Restore generation delay
+    if (state.genDelay) {
+        const el = $('#gen-delay');
+        if (el) el.value = state.genDelay;
+        // Also update queue config
+        setConfig({ delayBetweenScenes: state.genDelay });
+    }
+
     // Restore parsed script → rebuild scene list
     if (state.parsedScript && state.parsedScript.scenes?.length > 0) {
         log.info(`  📝 Restoring ${state.parsedScript.scenes.length} scenes`);
@@ -771,6 +779,15 @@ function initSettings() {
 
     // Aspect ratio
     $('#aspect-ratio').addEventListener('change', (e) => setState('aspectRatio', e.target.value));
+
+    // Generation delay
+    $('#gen-delay').addEventListener('change', (e) => {
+        const delay = parseInt(e.target.value);
+        setState('genDelay', delay);
+        // Update queue config immediately
+        setConfig({ delayBetweenScenes: delay });
+        log.info(`⏱️ [Settings] Generation delay set to ${delay / 1000}s`);
+    });
 }
 
 /**
