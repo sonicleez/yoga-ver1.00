@@ -146,6 +146,13 @@ export const PROVIDERS = {
                 resolution: 'Up to 2K',
                 price: 'Pay-as-you-go',
                 recommended: true,
+                description: 'Best quality, no reference images',
+            },
+            'imagen-3.0-capability-001': {
+                name: 'Imagen 3.0 + Ref 🎯',
+                resolution: 'Up to 2K',
+                price: 'Pay-as-you-go',
+                description: 'Supports character reference images',
             },
             'imagen-3.0-generate-001': {
                 name: 'Imagen 3.0',
@@ -369,18 +376,28 @@ async function generateImageGoogleAI(prompt, apiKey, options = {}) {
 
 /**
  * Generate image using Vertex AI Imagen API
- * Endpoint: /v1/projects/{project}/locations/us-central1/publishers/google/models/{model}:predict
+ *
+ * Supports two modes:
+ * 1. Text-to-image (imagen-4.0): No reference images, pure text prompt
+ * 2. Subject reference (imagen-3.0-capability-001): With character/environment reference
  *
  * @param {string} prompt - Image generation prompt
  * @param {string} apiKey - Format: "projectId|AQ.xxx" or just "AQ.xxx" (uses default project)
- * @param {Object} options - { model, aspectRatio, sampleCount }
+ * @param {Object} options - { model, aspectRatio, sampleCount, referenceImages, subjectDescription }
  */
 async function generateImageGoogleVertex(prompt, apiKey, options = {}) {
     const {
-        model = 'imagen-4.0-generate-001',
         aspectRatio = '16:9',
         sampleCount = 1,
+        referenceImages = [],      // Array of base64 strings
+        subjectDescription = '',   // Description of character in reference images
     } = options;
+
+    // Auto-select model based on reference images
+    // - imagen-4.0: Best quality, no reference support
+    // - imagen-3.0-capability-001: Supports subject reference for character consistency
+    const hasRefImages = referenceImages && referenceImages.length > 0;
+    const model = hasRefImages ? 'imagen-3.0-capability-001' : (options.model || 'imagen-4.0-generate-001');
 
     // Parse projectId and token from apiKey
     // Format: "projectId|AQ.xxx" or just "AQ.xxx"
@@ -403,6 +420,7 @@ async function generateImageGoogleVertex(prompt, apiKey, options = {}) {
     log.group(`🟢 [VertexAI] generateImageGoogleVertex()`);
     log.debug(`📋 Model: ${model} | AR: ${aspectRatio} | Samples: ${sampleCount}`);
     log.debug(`📋 Project: ${projectId}`);
+    log.debug(`📎 Reference images: ${referenceImages.length}`);
     log.time('⏱️ VertexAI Imagen call');
 
     // Build the API endpoint path
@@ -411,18 +429,59 @@ async function generateImageGoogleVertex(prompt, apiKey, options = {}) {
 
     log.debug(`🌐 [VertexAI] URL: ${VERTEX_AI_BASE}${endpoint}?key=***`);
 
-    // Build request body matching the curl format
-    const requestBody = {
-        instances: [{ prompt }],
-        parameters: {
-            aspectRatio: aspectRatio,
-            sampleCount: sampleCount,
-            personGeneration: 'allow_all',
-            addWatermark: false,
-        },
-    };
+    // Build request body
+    let requestBody;
 
-    log.debug(`📦 [VertexAI] Request body:`, JSON.stringify(requestBody, null, 2));
+    if (hasRefImages) {
+        // Subject reference mode (imagen-3.0-capability-001)
+        // Use [1] in prompt to reference the subject
+        const promptWithRef = prompt.includes('[1]') ? prompt : `[1] ${prompt}`;
+
+        // Build reference images array (max 4 images, all with same referenceId for better quality)
+        const refImagesArray = referenceImages.slice(0, 4).map((base64) => {
+            // Remove data:image/...;base64, prefix if present
+            const cleanBase64 = base64.replace(/^data:image\/[a-z]+;base64,/, '');
+            return {
+                referenceType: 'REFERENCE_TYPE_SUBJECT',
+                referenceId: 1, // All images share same ID for character consistency
+                referenceImage: {
+                    bytesBase64Encoded: cleanBase64,
+                },
+                subjectImageConfig: {
+                    subjectDescription: subjectDescription || 'the character',
+                    subjectType: 'SUBJECT_TYPE_PERSON',
+                },
+            };
+        });
+
+        requestBody = {
+            instances: [{
+                prompt: promptWithRef,
+                referenceImages: refImagesArray,
+            }],
+            parameters: {
+                sampleCount: sampleCount,
+                aspectRatio: aspectRatio,
+                personGeneration: 'allow_all',
+            },
+        };
+
+        log.debug(`📎 [VertexAI] Subject reference mode with ${refImagesArray.length} images`);
+        log.debug(`📝 [VertexAI] Prompt with ref: "${promptWithRef.substring(0, 100)}..."`);
+    } else {
+        // Standard text-to-image mode (imagen-4.0)
+        requestBody = {
+            instances: [{ prompt }],
+            parameters: {
+                aspectRatio: aspectRatio,
+                sampleCount: sampleCount,
+                personGeneration: 'allow_all',
+                addWatermark: false,
+            },
+        };
+    }
+
+    log.debug(`📦 [VertexAI] Request body (truncated):`, JSON.stringify(requestBody, null, 2).substring(0, 500));
 
     // Retry logic for transient errors (429, 500, 503)
     const maxRetries = 3;
