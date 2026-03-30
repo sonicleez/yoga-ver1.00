@@ -1465,6 +1465,7 @@ function generateAllImages() {
         aspectRatio: state.aspectRatio,
         referenceImages: state.referenceImages,
         envReferenceImages: state.envReferenceImages,
+        subjectDescription: state.characterDescription,
     });
 }
 
@@ -1510,6 +1511,7 @@ function generateSingleScene(sceneIndex) {
         aspectRatio: state.aspectRatio,
         referenceImages: state.referenceImages,
         envReferenceImages: state.envReferenceImages,
+        subjectDescription: state.characterDescription,
     });
 }
 
@@ -1562,6 +1564,7 @@ function editSceneWithAI(sceneIndex, editPrompt, targetFrame) {
         aspectRatio: state.aspectRatio,
         referenceImages: state.referenceImages,
         envReferenceImages: state.envReferenceImages,
+        subjectDescription: state.characterDescription,
         targetFrame: targetFrame
     };
 

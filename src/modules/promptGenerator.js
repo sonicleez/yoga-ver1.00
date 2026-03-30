@@ -371,8 +371,6 @@ function buildFramePrompt({ frameType, frameData, config, stylePreset, view }) {
     // frameData is now a simple string (pose description)
     const poseDesc = typeof frameData === 'string' ? frameData : (frameData.body || frameData);
 
-    // SIMPLIFIED PROMPT: Character doing pose in environment
-    // Format: "[Character] [pose description], [environment]"
     const layers = {
         pose: poseDesc,
         character: config.characterDescription,
@@ -381,13 +379,14 @@ function buildFramePrompt({ frameType, frameData, config, stylePreset, view }) {
         composition: getCompositionForView(view),
     };
 
-    // SHORT prompt = better accuracy
-    // Only include: character + pose + environment + view
+    // Build prompt with ALL layers for consistency
+    // Order: Style + Character + Pose + Environment + Composition
     const prompt = [
-        config.characterDescription,
-        poseDesc,
-        config.environment,
-        getCompositionForView(view),
+        stylePreset.stylePrompt,           // Style FIRST for visual consistency
+        config.characterDescription,        // Character description
+        poseDesc,                           // Pose/action
+        config.environment,                 // Environment/background
+        getCompositionForView(view),        // Camera/composition
     ].filter(Boolean).join(', ') + '.';
 
     return {
