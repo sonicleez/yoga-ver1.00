@@ -1,22 +1,27 @@
 /**
  * IMAGE GENERATOR — Multi-Provider Support
- * 
+ *
  * Provider 1: Google AI Direct (generativelanguage.googleapis.com)
  *   - Model: gemini-3.1-flash-image-preview
  *   - Auth: API key in URL param
  *   - Response: inline base64 image
- * 
+ *
  * Provider 2: Vertex Key (vertex-key.com)
  *   - Models: gemini-image-1k/2k/4k, gemini-3.1-flash-image-*
  *   - Auth: Bearer token (vai-...)
  *   - Endpoint: /api/v1/images/generations
  *   - Response: url or b64_json
  *   - Also: /api/v1/chat/completions for AI analysis
+ *
+ * Provider 3: Google Vertex (via @google/genai SDK)
+ *   - Uses official Google GenAI SDK
+ *   - Models: gemini-3-pro-image-preview, gemini-3.1-flash-image-preview
+ *   - Auth: Google AI Studio API Key (AIzaSy...)
+ *   - Response: inline base64 image
  */
 
 import { log } from './logger.js';
 import { GoogleGenAI } from '@google/genai';
-
 
 // ============================================================
 // API ROUTING (via proxy)
@@ -126,6 +131,7 @@ export const PROVIDERS = {
             },
         },
     },
+<<<<<<< HEAD
     'vertex-ai': {
         name: 'Google Vertex AI (NanoBanana)',
         description: 'Google AI Studio key → Gemini image models via @google/genai SDK',
@@ -134,12 +140,26 @@ export const PROVIDERS = {
         models: {
             'gemini-3-pro-image-preview': {
                 name: 'Nano Banana Pro ⭐ (Gemini 3 Pro)',
+=======
+    'google-vertex': {
+        name: 'Google Vertex AI (SDK)',
+        description: 'Google GenAI SDK trực tiếp - hỗ trợ reference images',
+        keyPrefix: 'AIza',
+        keyPlaceholder: 'AIzaSy...',
+        models: {
+            'gemini-3-pro-image-preview': {
+                name: 'Gemini 3 Pro Image (Nano Banana Pro) ⭐',
+>>>>>>> 92db139 (feat(provider): add Google Vertex AI provider using @google/genai SDK)
                 resolution: 'Auto',
                 price: 'Pay-as-you-go',
                 recommended: true,
             },
             'gemini-3.1-flash-image-preview': {
+<<<<<<< HEAD
                 name: 'Nano Banana 2 (Gemini 3.1 Flash)',
+=======
+                name: 'Gemini 3.1 Flash Image (Nano Banana 2)',
+>>>>>>> 92db139 (feat(provider): add Google Vertex AI provider using @google/genai SDK)
                 resolution: 'Auto',
                 price: 'Pay-as-you-go',
             },
@@ -189,8 +209,13 @@ export async function generateImage(prompt, apiKey, options = {}) {
         return generateImageVertexKey(prompt, apiKey, options);
     } else if (provider === 'gommo') {
         return generateImageGommo(prompt, apiKey, options);
+<<<<<<< HEAD
     } else if (provider === 'vertex-ai') {
         return generateImageVertexAI(prompt, apiKey, options);
+=======
+    } else if (provider === 'google-vertex') {
+        return generateImageGoogleVertex(prompt, apiKey, options);
+>>>>>>> 92db139 (feat(provider): add Google Vertex AI provider using @google/genai SDK)
     }
     return generateImageGoogleAI(prompt, apiKey, options);
 }
@@ -353,18 +378,89 @@ async function generateImageGoogleAI(prompt, apiKey, options = {}) {
 }
 
 // ============================================================
+<<<<<<< HEAD
 // PROVIDER 1b: Google Vertex AI (via @google/genai SDK)
 // Same key as Google AI (AIzaSy...) but uses SDK + supports
 // reference images as inline parts (multi-reference identity lock)
 // ============================================================
 
 async function generateImageVertexAI(prompt, apiKey, options = {}) {
+=======
+// PROVIDER 4: Google Vertex AI (via @google/genai SDK)
+// ============================================================
+
+/**
+ * Retry wrapper for transient API errors (500, 503, 429)
+ */
+async function withRetry(fn, operationName, maxRetries = 2) {
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await fn();
+        } catch (error) {
+            lastError = error;
+            const errorMessage = String(error?.message || error).toLowerCase();
+
+            // Policy violations should NOT be retried
+            const isPolicyViolation =
+                errorMessage.includes('policy') ||
+                errorMessage.includes('safety') ||
+                errorMessage.includes('blocked') ||
+                errorMessage.includes('harmful') ||
+                errorMessage.includes('inappropriate') ||
+                errorMessage.includes('prohibited') ||
+                errorMessage.includes('violation') ||
+                errorMessage.includes('content filter');
+
+            if (isPolicyViolation) {
+                log.error(`[GoogleVertex] ❌ Policy violation — NOT retrying:`, errorMessage.substring(0, 100));
+                throw error;
+            }
+
+            // Non-retryable auth errors
+            const isAuthError =
+                errorMessage.includes('unauthorized') ||
+                errorMessage.includes('forbidden') ||
+                errorMessage.includes('invalid api key') ||
+                errorMessage.includes('permission_denied');
+
+            if (isAuthError) {
+                throw error;
+            }
+
+            // Retryable transient errors
+            const isRetryable =
+                errorMessage.includes('500') ||
+                errorMessage.includes('503') ||
+                errorMessage.includes('429') ||
+                errorMessage.includes('overloaded') ||
+                errorMessage.includes('unavailable') ||
+                errorMessage.includes('internal') ||
+                errorMessage.includes('resource_exhausted');
+
+            if (!isRetryable || attempt === maxRetries) {
+                throw error;
+            }
+
+            const waitTime = Math.pow(2, attempt) * 1000 + Math.random() * 500;
+            log.warn(`[GoogleVertex] ⚠️ Attempt ${attempt}/${maxRetries} failed (transient). Retrying in ${(waitTime / 1000).toFixed(1)}s...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+    }
+
+    throw lastError;
+}
+
+async function generateImageGoogleVertex(prompt, apiKey, options = {}) {
+>>>>>>> 92db139 (feat(provider): add Google Vertex AI provider using @google/genai SDK)
     const {
         model = 'gemini-3-pro-image-preview',
         aspectRatio = '16:9',
         referenceImages = [],
     } = options;
 
+<<<<<<< HEAD
     log.group(`🟢 [VertexAI] generateImageVertexAI()`);
     log.debug(`📋 Model: ${model} | AR: ${aspectRatio}`);
     log.debug(`📎 Reference images: ${referenceImages.length}`);
@@ -408,10 +504,52 @@ async function generateImageVertexAI(prompt, apiKey, options = {}) {
     log.debug(`🔧 [VertexAI] Parts: ${fullParts.filter(p => p.inlineData).length} images + 1 text`);
 
     // Map model aliases (from scense_director compatibility)
+=======
+    log.group(`🟢 [GoogleVertex] generateImageGoogleVertex()`);
+    log.debug(`📋 Model: ${model} | AR: ${aspectRatio}`);
+    log.debug(`📎 Reference images: ${referenceImages.length}`);
+    log.time('⏱️ GoogleVertex SDK call');
+
+    const ai = new GoogleGenAI({ apiKey });
+
+    // Build parts: REFERENCE IMAGES FIRST, then TEXT PROMPT
+    const fullParts = [];
+
+    // Step 1: Add reference images FIRST (important for consistency)
+    if (referenceImages && referenceImages.length > 0) {
+        for (let i = 0; i < referenceImages.length; i++) {
+            let base64Data = referenceImages[i];
+            let mimeType = 'image/png';
+
+            // Strip data URI prefix if present
+            if (base64Data.startsWith('data:')) {
+                const match = base64Data.match(/^data:([^;]+);base64,(.+)$/);
+                if (match) {
+                    mimeType = match[1];
+                    base64Data = match[2];
+                }
+            }
+
+            // Add label for reference image
+            fullParts.push({ text: `Reference image ${i + 1}:` });
+            fullParts.push({
+                inlineData: { data: base64Data, mimeType }
+            });
+        }
+        log.debug(`[GoogleVertex] 📎 ${referenceImages.length} reference image(s) loaded`);
+    }
+
+    // Step 2: Text prompt LAST (after all images)
+    fullParts.push({ text: prompt });
+
+    // Map model names if needed
+    let finalModel = model;
+>>>>>>> 92db139 (feat(provider): add Google Vertex AI provider using @google/genai SDK)
     const MODEL_MAP = {
         'google-nano-banana-pro': 'gemini-3-pro-image-preview',
         'google-nano-banana-2': 'gemini-3.1-flash-image-preview',
     };
+<<<<<<< HEAD
     const finalModel = MODEL_MAP[model] || model;
     if (finalModel !== model) {
         log.debug(`🔄 [VertexAI] Model mapped: ${model} → ${finalModel}`);
@@ -454,10 +592,37 @@ async function generateImageVertexAI(prompt, apiKey, options = {}) {
         const base64 = imagePart.inlineData.data;
         log.debug(`✅ [VertexAI] Image received: ${Math.round(base64.length / 1024)}KB base64`);
         log.timeEnd('⏱️ VertexAI SDK call');
+=======
+    if (MODEL_MAP[model]) {
+        finalModel = MODEL_MAP[model];
+        log.debug(`[GoogleVertex] 🔄 Model mapped: ${model} → ${finalModel}`);
+    }
+
+    const response = await withRetry(async () => {
+        return await ai.models.generateContent({
+            model: finalModel,
+            contents: [{ parts: fullParts }],
+            config: {
+                responseModalities: ["TEXT", "IMAGE"],
+                imageConfig: {
+                    aspectRatio: aspectRatio,
+                }
+            },
+        });
+    }, 'GoogleVertexImageGen', 2);
+
+    // Extract image from response parts
+    const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+    if (imagePart?.inlineData) {
+        const base64 = imagePart.inlineData.data;
+        log.debug(`✅ [GoogleVertex] Image received: ${Math.round(base64.length / 1024)}KB base64`);
+        log.timeEnd('⏱️ GoogleVertex SDK call');
+>>>>>>> 92db139 (feat(provider): add Google Vertex AI provider using @google/genai SDK)
         log.groupEnd();
         return { base64, blobUrl: base64ToBlobUrl(base64), imageUrl: null };
     }
 
+<<<<<<< HEAD
     // Check block reason
     const blockReason = response.candidates?.[0]?.finishReason;
     if (blockReason && blockReason !== 'STOP') {
@@ -473,6 +638,21 @@ async function generateImageVertexAI(prompt, apiKey, options = {}) {
     log.timeEnd('⏱️ VertexAI SDK call');
     log.groupEnd();
     throw new Error(textPart?.text || 'Không nhận được ảnh từ Vertex AI. Hãy thử lại.');
+=======
+    // Check if response was blocked
+    const blockReason = response.candidates?.[0]?.finishReason;
+    if (blockReason && blockReason !== 'STOP') {
+        log.error(`❌ [GoogleVertex] Generation blocked: ${blockReason}`);
+        log.timeEnd('⏱️ GoogleVertex SDK call');
+        log.groupEnd();
+        throw new Error(`Google Vertex: Generation blocked (${blockReason}). Hãy thử prompt khác.`);
+    }
+
+    log.error('❌ [GoogleVertex] No image in response');
+    log.timeEnd('⏱️ GoogleVertex SDK call');
+    log.groupEnd();
+    throw new Error("Không nhận được ảnh từ Google Vertex API. Hãy thử lại.");
+>>>>>>> 92db139 (feat(provider): add Google Vertex AI provider using @google/genai SDK)
 }
 
 // ============================================================
