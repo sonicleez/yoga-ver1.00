@@ -141,8 +141,8 @@ export const PROVIDERS = {
     'vertex-ai': {
         name: 'Google Vertex AI (Imagen)',
         description: 'Vertex AI Imagen 4.0 - High quality image generation',
-        keyPrefix: 'AQ.',
-        keyPlaceholder: 'AQ.Ab8RN6Kr... (Vertex AI token)',
+        keyPrefix: '',
+        keyPlaceholder: 'projectId|AQ.xxx (e.g. fourth-gantry-483803-q8|AQ.Ab8RN6Kr...)',
         models: {
             'imagen-4.0-generate-001': {
                 name: 'Imagen 4.0 ⭐',
@@ -257,15 +257,17 @@ export async function verifyApiKey(apiKey, provider = null) {
 
 /**
  * Auto-detect provider from API key format
- * vertex-ai: AQ.* token — Vertex AI Imagen API
+ * vertex-ai: projectId|AQ.* or AQ.* — Vertex AI Imagen API
  * google-ai: AIzaSy... key — default if provider not forced
  * vertex-key: vai-... key
- * gommo: domain|accessToken
+ * gommo: domain|accessToken (domain contains '.')
  */
 function detectProvider(apiKey) {
-    if (apiKey.includes('|')) return 'gommo';
     if (apiKey.startsWith('vai-')) return 'vertex-key';
-    if (apiKey.startsWith('AQ.')) return 'vertex-ai';
+    // Check for Vertex AI: contains |AQ. or starts with AQ.
+    if (apiKey.includes('|AQ.') || apiKey.startsWith('AQ.')) return 'vertex-ai';
+    // Gommo: domain|token (domain has a dot like "10xyoutube.net|xxx")
+    if (apiKey.includes('|') && apiKey.split('|')[0].includes('.')) return 'gommo';
     // AIzaSy keys default to google-ai
     return 'google-ai';
 }
@@ -373,16 +375,26 @@ async function generateImageGoogleAI(prompt, apiKey, options = {}) {
  * Endpoint: /v1/projects/{project}/locations/us-central1/publishers/google/models/{model}:predict
  *
  * @param {string} prompt - Image generation prompt
- * @param {string} apiKey - Vertex AI token (AQ.*)
- * @param {Object} options - { model, aspectRatio, sampleCount, projectId }
+ * @param {string} apiKey - Format: "projectId|AQ.xxx" or just "AQ.xxx" (uses default project)
+ * @param {Object} options - { model, aspectRatio, sampleCount }
  */
 async function generateImageGoogleVertex(prompt, apiKey, options = {}) {
     const {
         model = 'imagen-4.0-generate-001',
         aspectRatio = '16:9',
         sampleCount = 1,
-        projectId = 'fourth-gantry-483803-q8', // Default project ID
     } = options;
+
+    // Parse projectId and token from apiKey
+    // Format: "projectId|AQ.xxx" or just "AQ.xxx"
+    let projectId = 'fourth-gantry-483803-q8'; // Default
+    let token = apiKey;
+
+    if (apiKey.includes('|')) {
+        const parts = apiKey.split('|');
+        projectId = parts[0];
+        token = parts.slice(1).join('|'); // In case token has |
+    }
 
     log.group(`🟢 [VertexAI] generateImageGoogleVertex()`);
     log.debug(`📋 Model: ${model} | AR: ${aspectRatio} | Samples: ${sampleCount}`);
@@ -391,7 +403,7 @@ async function generateImageGoogleVertex(prompt, apiKey, options = {}) {
 
     // Build the API endpoint path
     const endpoint = `/v1/projects/${projectId}/locations/us-central1/publishers/google/models/${model}:predict`;
-    const url = `${VERTEX_AI_BASE}${endpoint}?key=${apiKey}`;
+    const url = `${VERTEX_AI_BASE}${endpoint}?key=${token}`;
 
     log.debug(`🌐 [VertexAI] URL: ${VERTEX_AI_BASE}${endpoint}?key=***`);
 

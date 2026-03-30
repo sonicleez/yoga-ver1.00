@@ -670,19 +670,20 @@ function initSettings() {
             setApiKey('vertex-key', key);
             setState('provider', 'vertex-key');
             updateProviderUI('vertex-key');
-        } else if (key.startsWith('AIza') && currentProvider !== 'google-ai' && currentProvider !== 'vertex-ai') {
-            // AIzaSy keys can be google-ai or vertex-ai — don't auto-switch if already on vertex-ai
+        } else if (key.startsWith('AIza') && currentProvider !== 'google-ai') {
             setApiKey('google-ai', key);
             setState('provider', 'google-ai');
             updateProviderUI('google-ai');
-        } else if (key.includes('|') && currentProvider !== 'gommo') {
-            setApiKey('gommo', key);
-            setState('provider', 'gommo');
-            updateProviderUI('gommo');
-        } else if (key.startsWith('AQ.') && currentProvider !== 'vertex-ai') {
+        } else if ((key.includes('|AQ.') || key.startsWith('AQ.')) && currentProvider !== 'vertex-ai') {
+            // Vertex AI: projectId|AQ.xxx or AQ.xxx
             setApiKey('vertex-ai', key);
             setState('provider', 'vertex-ai');
             updateProviderUI('vertex-ai');
+        } else if (key.includes('|') && key.split('|')[0].includes('.') && currentProvider !== 'gommo') {
+            // Gommo: domain.net|token
+            setApiKey('gommo', key);
+            setState('provider', 'gommo');
+            updateProviderUI('gommo');
         }
     });
 
