@@ -420,66 +420,98 @@ async function generateImageGoogleVertex(prompt, apiKey, options = {}) {
 
     log.debug(`📦 [VertexAI] Request body:`, JSON.stringify(requestBody, null, 2));
 
-    try {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestBody),
-        });
+    // Retry logic for transient errors (429, 500, 503)
+    const maxRetries = 3;
+    let lastError = null;
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            log.error(`❌ [VertexAI] API error ${response.status}:`, errorText);
-            log.timeEnd('⏱️ VertexAI Imagen call');
-            log.groupEnd();
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestBody),
+            });
 
-            // Parse error for better message
-            try {
-                const errorJson = JSON.parse(errorText);
-                const message = errorJson.error?.message || errorText;
-                throw new Error(`Vertex AI Error: ${message}`);
-            } catch (parseErr) {
-                throw new Error(`Vertex AI Error (${response.status}): ${errorText.substring(0, 200)}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                log.error(`❌ [VertexAI] API error ${response.status}:`, errorText);
+
+                // Check if retryable (429, 500, 503)
+                const isRetryable = [429, 500, 503].includes(response.status);
+                if (isRetryable && attempt < maxRetries) {
+                    const waitTime = Math.pow(2, attempt) * 2000 + Math.random() * 1000;
+                    log.warn(`⚠️ [VertexAI] Retryable error ${response.status}. Attempt ${attempt}/${maxRetries}. Waiting ${(waitTime/1000).toFixed(1)}s...`);
+                    await new Promise(r => setTimeout(r, waitTime));
+                    continue;
+                }
+
+                // Parse error for better message
+                try {
+                    const errorJson = JSON.parse(errorText);
+                    const message = errorJson.error?.message || errorText;
+                    throw new Error(`Vertex AI Error: ${message}`);
+                } catch (parseErr) {
+                    if (parseErr.message.startsWith('Vertex AI Error:')) throw parseErr;
+                    throw new Error(`Vertex AI Error (${response.status}): ${errorText.substring(0, 200)}`);
+                }
             }
-        }
 
-        const data = await response.json();
-        log.debug(`📥 [VertexAI] Response received`);
+            const data = await response.json();
+            log.debug(`📥 [VertexAI] Response received`);
 
-        // Extract image from predictions array
-        // Response format: { predictions: [{ bytesBase64Encoded: "...", mimeType: "image/png" }] }
-        const predictions = data.predictions;
-        if (!predictions || predictions.length === 0) {
-            log.error('❌ [VertexAI] No predictions in response:', JSON.stringify(data));
+            // Extract image from predictions array
+            // Response format: { predictions: [{ bytesBase64Encoded: "...", mimeType: "image/png" }] }
+            const predictions = data.predictions;
+            if (!predictions || predictions.length === 0) {
+                log.error('❌ [VertexAI] No predictions in response:', JSON.stringify(data));
+                log.timeEnd('⏱️ VertexAI Imagen call');
+                log.groupEnd();
+                throw new Error('Không nhận được ảnh từ Vertex AI. Response empty.');
+            }
+
+            const firstPrediction = predictions[0];
+            const base64 = firstPrediction.bytesBase64Encoded;
+
+            if (!base64) {
+                log.error('❌ [VertexAI] No base64 image in prediction:', JSON.stringify(firstPrediction));
+                log.timeEnd('⏱️ VertexAI Imagen call');
+                log.groupEnd();
+                throw new Error('Không có dữ liệu ảnh trong response.');
+            }
+
+            log.debug(`✅ [VertexAI] Image received: ${Math.round(base64.length / 1024)}KB base64`);
             log.timeEnd('⏱️ VertexAI Imagen call');
             log.groupEnd();
-            throw new Error('Không nhận được ảnh từ Vertex AI. Response empty.');
-        }
 
-        const firstPrediction = predictions[0];
-        const base64 = firstPrediction.bytesBase64Encoded;
+            return { base64, blobUrl: base64ToBlobUrl(base64), imageUrl: null };
 
-        if (!base64) {
-            log.error('❌ [VertexAI] No base64 image in prediction:', JSON.stringify(firstPrediction));
+        } catch (error) {
+            lastError = error;
+
+            // Check if should retry
+            const errorMsg = error.message?.toLowerCase() || '';
+            const isRetryable = errorMsg.includes('429') || errorMsg.includes('500') || errorMsg.includes('503') || errorMsg.includes('rate');
+
+            if (isRetryable && attempt < maxRetries) {
+                const waitTime = Math.pow(2, attempt) * 2000 + Math.random() * 1000;
+                log.warn(`⚠️ [VertexAI] Retryable error. Attempt ${attempt}/${maxRetries}. Waiting ${(waitTime/1000).toFixed(1)}s...`);
+                await new Promise(r => setTimeout(r, waitTime));
+                continue;
+            }
+
+            log.error(`❌ [VertexAI] Exception:`, error.message);
             log.timeEnd('⏱️ VertexAI Imagen call');
             log.groupEnd();
-            throw new Error('Không có dữ liệu ảnh trong response.');
+            throw error;
         }
-
-        log.debug(`✅ [VertexAI] Image received: ${Math.round(base64.length / 1024)}KB base64`);
-        log.timeEnd('⏱️ VertexAI Imagen call');
-        log.groupEnd();
-
-        return { base64, blobUrl: base64ToBlobUrl(base64), imageUrl: null };
-
-    } catch (error) {
-        log.error(`❌ [VertexAI] Exception:`, error.message);
-        log.timeEnd('⏱️ VertexAI Imagen call');
-        log.groupEnd();
-        throw error;
     }
+
+    // Should not reach here, but just in case
+    log.timeEnd('⏱️ VertexAI Imagen call');
+    log.groupEnd();
+    throw lastError || new Error('Vertex AI: Unknown error after retries');
 }
 
 // ============================================================

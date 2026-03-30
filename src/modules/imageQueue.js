@@ -41,10 +41,11 @@ let currentAbortController = null;
 
 // Config
 const CONFIG = {
-    delayBetweenScenes: 2500,    // ms giữa mỗi scene (bao gồm cả start+end)
-    delayBetweenFrames: 1500,    // ms giữa start frame và end frame (trong generateSceneImages)
-    maxRetries: 2,               // Số lần retry khi lỗi
-    retryDelay: 5000,            // ms chờ trước khi retry
+    delayBetweenScenes: 4000,    // ms giữa mỗi scene (tăng từ 2500 lên 4000 cho rate limit)
+    delayBetweenFrames: 2000,    // ms giữa start frame và end frame
+    maxRetries: 3,               // Số lần retry khi lỗi (tăng từ 2 lên 3)
+    retryDelayBase: 5000,        // ms base delay trước khi retry
+    retryDelayMax: 30000,        // ms max delay cho exponential backoff
 };
 
 // Callbacks
@@ -301,14 +302,21 @@ async function processQueue() {
             log.error(`❌ [Queue] Error for "${nextItem.sceneName}":`, err.message);
             log.error(`❌ [Queue] Full error:`, err);
 
-            // Retry logic
+            // Retry logic with exponential backoff
             if (nextItem.retryCount < CONFIG.maxRetries) {
                 nextItem.retryCount++;
                 nextItem.status = 'pending';
-                log.warn(`🔄 [Queue] Retrying "${nextItem.sceneName}" (attempt ${nextItem.retryCount}/${CONFIG.maxRetries}) after ${CONFIG.retryDelay}ms delay...`);
+
+                // Exponential backoff: 5s, 10s, 20s (capped at max)
+                const retryDelay = Math.min(
+                    CONFIG.retryDelayBase * Math.pow(2, nextItem.retryCount - 1),
+                    CONFIG.retryDelayMax
+                );
+
+                log.warn(`🔄 [Queue] Retrying "${nextItem.sceneName}" (attempt ${nextItem.retryCount}/${CONFIG.maxRetries}) after ${retryDelay}ms delay...`);
                 log.timeEnd(`⏱️ Queue item "${nextItem.sceneName}"`);
                 log.groupEnd();
-                await sleep(CONFIG.retryDelay);
+                await sleep(retryDelay);
                 continue;
             }
 
