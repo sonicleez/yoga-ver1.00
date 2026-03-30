@@ -556,8 +556,8 @@ function rebuildFromState() {
         }
     }
 
-    // Restore step (default to Script Gen = step 7)
-    const targetStep = state.currentStep || 7;
+    // Restore step (default to Settings = step 0)
+    const targetStep = state.currentStep ?? 0;
     log.info(`  📍 Restoring step ${targetStep}`);
     goToStep(targetStep);
 
@@ -630,8 +630,8 @@ function initNavigation() {
 
 function goToStep(step) {
     const stepNames = ['Settings', 'Script Input', 'Character Setup', 'Prompt Review', 'Gallery', 'Thumbnail', '', 'Script Gen', 'Admin'];
-    // Logical flow order: Script Gen(7) → Settings(0) → Script(1) → Char(2) → Prompts(3) → Gallery(4) → Thumbnail(5) → Admin(8)
-    const FLOW_ORDER = [7, 0, 1, 2, 3, 4, 5, 8];
+    // Logical flow order: Settings(0) → Script Gen(7) → Script(1) → Char(2) → Prompts(3) → Gallery(4) → Thumbnail(5) → Admin(8)
+    const FLOW_ORDER = [0, 7, 1, 2, 3, 4, 5, 8];
 
     log.debug(`📍 [Nav] goToStep(${step}) → "${stepNames[step] || 'Unknown'}"`);
 
