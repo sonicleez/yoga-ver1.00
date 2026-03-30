@@ -82,317 +82,149 @@ export const STYLE_PRESETS = {
 const POSE_FRAMES_DB = {
 
     'easy pose': {
-        start: {
-            body: 'kneeling on the yoga mat, about to sit down, hands on thighs, back straight',
-            eyes: 'eyes open, looking forward',
-            expression: 'gentle smile, attentive',
-        },
-        end: {
-            body: 'sitting cross-legged (Sukhasana) on the mat, hands resting gently on knees with palms down, spine tall and elongated, shoulders relaxed',
-            eyes: 'eyes gently closed',
-            expression: 'calm and serene smile, completely at peace',
-        },
-        transition: 'settling down into cross-legged seated position',
+        start: 'kneeling upright on the yoga mat, hands resting on thighs, back straight',
+        end: 'sitting cross-legged on the mat, palms on knees, spine tall, shoulders relaxed',
+        transition: 'slowly lowers hips and crosses legs into seated position',
         view: 'front',
     },
 
     'downward facing dog': {
-        start: {
-            body: 'on all fours in tabletop position, hands shoulder-width apart, knees hip-width apart, toes tucked under',
-            eyes: 'looking down at the mat',
-            expression: 'focused and ready',
-        },
-        end: {
-            body: 'in an inverted V-shape (Downward Dog), hips pressed high up and back, arms and legs straight, heels reaching toward the mat, head relaxed between arms',
-            eyes: 'looking toward the toes or navel',
-            expression: 'calm and stretched',
-        },
-        transition: 'lifting hips up and back, straightening arms and legs into an inverted V-shape',
+        start: 'on all fours, hands under shoulders, knees under hips, tabletop position',
+        end: 'inverted V-shape, hips high, arms and legs straight, heels toward mat, head between arms',
+        transition: 'tucks toes and lifts hips up and back, straightening arms and legs',
         view: 'side',
     },
 
     'tree pose': {
-        start: {
-            body: 'standing tall in Mountain Pose (Tadasana), weight shifting slightly onto the left leg, arms at sides',
-            eyes: 'looking straight ahead at a focal point',
-            expression: 'focused and balanced',
-        },
-        end: {
-            body: 'standing on one leg, the sole of the right foot resting on the inner left thigh (Tree Pose), knee pointing out to the side, hands pressed together at heart center or raised overhead like branches',
-            eyes: 'looking straight ahead unblinking',
-            expression: 'peaceful, balanced, and proud',
-        },
-        transition: 'lifting one foot and placing it on the inner thigh of the opposite standing leg, bringing hands together',
+        start: 'standing tall, feet together, arms at sides, Mountain Pose',
+        end: 'standing on left leg, right foot on inner left thigh, hands at heart center',
+        transition: 'shifts weight to left foot, lifts right foot to inner thigh, brings palms together',
         view: 'front',
     },
 
     'warrior 1': {
-        start: {
-            body: 'standing at the front of the mat in Mountain Pose, ready to step one foot back',
-            eyes: 'looking straight ahead',
-            expression: 'confident and ready',
-        },
-        end: {
-            body: 'in a high lunge with the front knee bent at 90 degrees, back leg extended straight with foot flat and angled slightly outward, hips facing forward, arms reaching straight up overhead, chest lifted',
-            eyes: 'looking straight ahead or slightly up',
-            expression: 'strong, fierce, and focused',
-        },
-        transition: 'stepping one foot back, bending the front knee, and sweeping both arms up to the sky',
+        start: 'standing tall at front of mat, feet together, arms at sides',
+        end: 'front knee bent 90 degrees, back leg straight, both arms reaching overhead, chest lifted',
+        transition: 'steps right foot back, bends front knee, sweeps both arms overhead',
         view: 'three-quarter',
     },
 
     'warrior 2': {
-        start: {
-            body: 'standing in Warrior 1, arms reaching up, facing forward',
-            eyes: 'looking forward',
-            expression: 'strong and steady',
-        },
-        end: {
-            body: 'hips and chest open to the side, front knee bent at 90 degrees over the ankle, back leg straight, arms extended out parallel to the floor forming a straight line, gaze over the front fingertips',
-            eyes: 'looking fiercely over the front hand',
-            expression: 'powerful, grounded, and steady',
-        },
-        transition: 'opening hips, chest, and arms to the side while keeping the front knee bent',
+        start: 'standing in wide stance, arms at sides, feet wide apart',
+        end: 'front knee bent 90 degrees, back leg straight, arms extended parallel to floor, looking over front hand',
+        transition: 'bends front knee, extends arms out to sides at shoulder height, turns head forward',
         view: 'side',
     },
 
     'cobra pose': {
-        start: {
-            body: 'lying flat on the stomach (prone), hands placed flat on the mat under the shoulders, elbows tucked close to the ribs, legs extended back',
-            eyes: 'looking down at the mat',
-            expression: 'calm and relaxed',
-        },
-        end: {
-            body: 'chest, head, and shoulders lifted off the mat (Cobra Pose), elbows slightly bent and tucked in, pelvis resting on the mat, tops of the feet pressing down, neck long',
-            eyes: 'looking forward and slightly up',
-            expression: 'gentle smile, feeling the back stretch',
-        },
-        transition: 'pressing into the hands to gently curl the chest and head upward away from the mat',
+        start: 'lying face down, hands flat under shoulders, elbows tucked, legs straight back',
+        end: 'chest and head lifted off mat, arms slightly bent, pelvis on mat, gentle backbend',
+        transition: 'presses into hands, slowly curls chest upward off the mat',
         view: 'side',
     },
 
     'bridge pose': {
-        start: {
-            body: 'lying flat on back, knees bent, feet flat on the mat hip-width apart and close to the glutes, arms resting by sides',
-            eyes: 'eyes looking up at the ceiling',
-            expression: 'calm and centered',
-        },
-        end: {
-            body: 'hips lifted high off the mat, thighs parallel to the floor, chest lifted toward the chin, arms pressing down into the mat or hands clasped together under the back',
-            eyes: 'eyes looking up or gently closed',
-            expression: 'strong, feeling open and energized',
-        },
-        transition: 'pressing into the feet and lifting the hips and lower back off the floor',
-        view: 'three-quarter-above',
+        start: 'lying on back, knees bent, feet flat hip-width apart, arms by sides',
+        end: 'hips lifted high, thighs parallel to floor, arms pressing into mat, chest open',
+        transition: 'presses feet into mat, lifts hips and lower back off the floor',
+        view: 'side',
     },
 
     'gentle neck stretch': {
-        start: {
-            body: 'sitting cross-legged on the mat, spine tall, head centered and straight, both shoulders level and relaxed',
-            eyes: 'eyes softly closed',
-            expression: 'calm and centered',
-        },
-        end: {
-            body: 'sitting cross-legged, head tilted gently to the right side, right ear moving toward right shoulder, left arm relaxed by side, shoulders staying level',
-            eyes: 'eyes closed',
-            expression: 'relaxed and peaceful, feeling the stretch',
-        },
-        transition: 'slowly tilting head to one side',
+        start: 'sitting cross-legged, spine tall, head centered, shoulders relaxed',
+        end: 'sitting cross-legged, head tilted right, right ear toward right shoulder, shoulders level',
+        transition: 'slowly tilts head to the right side',
         view: 'front',
     },
 
     'cat cow': {
-        start: {
-            body: 'on all fours in tabletop position, hands directly under shoulders, knees under hips, spine neutral and flat like a table, toes tucked',
-            eyes: 'eyes looking down at the mat',
-            expression: 'neutral and focused',
-        },
-        end: {
-            body: 'on all fours, spine rounded upward into a high arch (Cat Pose), chin tucked toward chest, belly pulled in, shoulders broad, tailbone tucked under',
-            eyes: 'eyes looking at belly/navel',
-            expression: 'calm concentration, gentle engagement',
-        },
-        transition: 'flowing between cow pose (back arched down) and cat pose (back rounded up)',
+        start: 'on all fours, hands under shoulders, knees under hips, spine flat and neutral',
+        end: 'on all fours, spine rounded into high arch, chin tucked to chest, belly pulled in',
+        transition: 'rounds spine upward, tucks chin and tailbone, engages core',
         view: 'side',
     },
 
     "child's pose": {
-        start: {
-            body: 'kneeling upright on the mat, sitting on heels, arms by sides, back straight tall',
-            eyes: 'eyes softly closed',
-            expression: 'calm and ready to rest',
-        },
-        end: {
-            body: 'kneeling with hips resting back on heels, torso folded forward over thighs, forehead resting on the mat, arms extended straight forward on the mat with palms down',
-            eyes: 'eyes closed',
-            expression: 'deeply relaxed, surrendered, peaceful',
-        },
-        transition: 'folding forward from kneeling to rest on the mat',
+        start: 'kneeling upright, sitting on heels, hands at sides, back straight',
+        end: 'kneeling with torso folded forward, forehead on mat, arms extended forward, hips on heels',
+        transition: 'slowly folds torso forward over thighs, lowers forehead to mat',
         view: 'side',
     },
 
     'standing forward fold': {
-        start: {
-            body: 'standing tall in Mountain Pose (Tadasana), feet hip-width apart, arms relaxed by sides, spine long and straight, weight evenly distributed',
-            eyes: 'eyes looking forward',
-            expression: 'calm and tall, grounded',
-        },
-        end: {
-            body: 'standing with feet hip-width apart, torso folded forward at the hips, upper body hanging down relaxed, head heavy, arms dangling toward the floor or fingertips touching the mat',
-            eyes: 'eyes closed',
-            expression: 'completely relaxed, letting go',
-        },
-        transition: 'slowly hinging at hips to fold forward with straight back',
+        start: 'standing tall, feet hip-width apart, arms at sides, spine straight',
+        end: 'standing with torso folded forward at hips, head hanging, hands toward floor',
+        transition: 'hinges at hips with flat back, folds torso forward and down',
         view: 'side',
     },
 
     'half lift': {
-        start: {
-            body: 'standing in forward fold, torso hanging down, hands near the floor, head relaxed',
-            eyes: 'eyes looking down',
-            expression: 'relaxed',
-        },
-        end: {
-            body: 'standing with flat back parallel to the floor (halfway lifted), hands placed on shins, arms straight, spine long and extended like a table, neck in line with spine',
-            eyes: 'eyes gazing softly at the mat a few feet ahead',
-            expression: 'focused and steady, engaged',
-        },
-        transition: 'lifting torso halfway up with a long spine',
+        start: 'standing in forward fold, torso hanging, hands near floor',
+        end: 'standing with flat back parallel to floor, hands on shins, spine long and extended',
+        transition: 'lifts torso halfway up, extends spine flat like a table',
         view: 'side',
     },
 
     'low lunge': {
-        start: {
-            body: 'standing in forward fold at the front of the mat, both hands on the mat beside feet, ready to step one foot back',
-            eyes: 'eyes looking at the mat',
-            expression: 'focused preparation',
-        },
-        end: {
-            body: 'right foot forward between hands in a deep lunge, left knee lowered to the mat, hips sinking forward and down, torso upright, arms reaching up overhead with palms together, chest lifted and open',
-            eyes: 'eyes looking forward or slightly upward',
-            expression: 'confident, open, and strong yet calm',
-        },
-        transition: 'stepping one foot forward and sinking into a lunge with arms raised',
+        start: 'standing in forward fold, hands on mat beside feet',
+        end: 'right foot forward in deep lunge, left knee on mat, torso upright, arms overhead',
+        transition: 'steps right foot forward, lowers left knee, lifts arms overhead',
         view: 'side',
     },
 
     'gentle lizard pose': {
-        start: {
-            body: 'in low lunge position, right foot forward, both hands on the mat on either side of the front foot, back knee on the mat',
-            eyes: 'eyes looking down at the mat',
-            expression: 'calm and focused',
-        },
-        end: {
-            body: 'in a deep lunge, both forearms or both hands placed on the mat INSIDE the right front foot, hips sinking low and heavy, back left leg extended long, chest slightly open to the side',
-            eyes: 'eyes looking down softly',
-            expression: 'relaxed surrender, feeling the deep hip stretch',
-        },
-        transition: 'walking both hands to the inside of the front foot and sinking deeper',
+        start: 'in low lunge, right foot forward, hands on mat beside front foot, back knee down',
+        end: 'deep lunge with forearms on mat inside front foot, hips sinking low, back leg extended',
+        transition: 'walks hands inside front foot, lowers forearms to mat, sinks hips deeper',
         view: 'side',
     },
 
     'seated forward fold': {
-        start: {
-            body: 'sitting upright on the mat with both legs extended straight forward (Staff Pose / Dandasana), feet flexed, hands by hips, spine tall',
-            eyes: 'eyes looking forward',
-            expression: 'alert and upright',
-        },
-        end: {
-            body: 'sitting with both legs straight forward, torso folded forward over the legs, chest moving toward thighs, hands reaching toward or holding feet/ankles, head relaxed toward knees',
-            eyes: 'eyes closed',
-            expression: 'calm surrender, releasing tension',
-        },
-        transition: 'hinging at hips to fold forward over straight legs',
+        start: 'sitting upright, both legs straight forward, feet flexed, spine tall',
+        end: 'torso folded forward over straight legs, hands reaching toward feet, head relaxed',
+        transition: 'hinges at hips, folds torso forward over legs toward feet',
         view: 'side',
     },
 
     'butterfly pose': {
-        start: {
-            body: 'sitting upright on the mat, legs extended forward, about to bring feet together, hands by sides',
-            eyes: 'eyes open, looking down at legs',
-            expression: 'attentive and calm',
-        },
-        end: {
-            body: 'sitting tall with soles of feet pressed together close to pelvis, knees falling open outward like butterfly wings, hands gently holding feet or ankles, spine long',
-            eyes: 'eyes gently closed',
-            expression: 'peaceful and content, soft smile',
-        },
-        transition: 'drawing feet together and letting knees relax open',
+        start: 'sitting upright, legs extended forward, hands by sides',
+        end: 'sitting tall, soles of feet together, knees open outward, hands holding feet',
+        transition: 'draws feet together, lets knees fall open to sides like butterfly wings',
         view: 'front',
     },
 
     'supine twist': {
-        start: {
-            body: 'lying flat on back on the mat, both knees bent with feet flat on the mat, arms spread out to sides in a T-shape',
-            eyes: 'eyes closed',
-            expression: 'relaxed and ready to twist',
-        },
-        end: {
-            body: 'lying on back, both bent knees dropped gently to the left side toward the mat, right shoulder staying grounded on the mat, head turned to the right, arms spread in T-shape',
-            eyes: 'eyes closed',
-            expression: 'deeply relaxed, feeling a gentle spinal twist',
-        },
-        transition: 'letting both knees drop to one side while keeping shoulders grounded',
+        start: 'lying on back, knees bent, feet flat on mat, arms in T-shape',
+        end: 'lying on back, both bent knees dropped to left side, head turned right, arms in T-shape',
+        transition: 'lets both knees drop gently to the left while keeping shoulders grounded',
         view: 'three-quarter-above',
     },
 
     'knees to chest': {
-        start: {
-            body: 'lying flat on back on the mat, legs extended straight, arms by sides, relaxed',
-            eyes: 'eyes closed',
-            expression: 'relaxed and still',
-        },
-        end: {
-            body: 'lying on back, both knees drawn in and hugged tightly to chest, arms wrapped around shins, chin slightly tucked, lower back pressing gently into the mat',
-            eyes: 'eyes closed',
-            expression: 'cozy, comfortable, self-soothing',
-        },
-        transition: 'drawing knees up and hugging them into chest',
+        start: 'lying on back, legs extended straight, arms by sides',
+        end: 'lying on back, both knees hugged to chest, arms wrapped around shins',
+        transition: 'draws both knees up and hugs them tightly to chest',
         view: 'side',
     },
 
     'happy baby': {
-        start: {
-            body: 'lying on back, knees bent, feet flat on the mat, arms by sides',
-            eyes: 'eyes closed',
-            expression: 'relaxed and ready',
-        },
-        end: {
-            body: 'lying on back, knees bent and drawn toward armpits, soles of feet facing the ceiling, hands grabbing the outside edges of feet, knees wide apart, gently rocking side to side',
-            eyes: 'eyes closed with a playful smile',
-            expression: 'playful, happy, childlike joy',
-        },
-        transition: 'lifting feet up and grasping them with hands, opening knees wide',
+        start: 'lying on back, knees bent, feet flat on mat, arms at sides',
+        end: 'lying on back, knees drawn toward armpits, hands grabbing outside edges of feet, knees wide',
+        transition: 'lifts feet up, grasps outer edges of feet, opens knees wide',
         view: 'three-quarter-above',
     },
 
     'legs up the wall': {
-        start: {
-            body: 'sitting sideways next to a wall on the mat, about to swing legs up',
-            eyes: 'eyes open',
-            expression: 'preparing to transition',
-        },
-        end: {
-            body: 'lying on back with buttocks close to the wall, both legs extended straight up resting against the wall, arms relaxed by sides with palms up, whole body forming an L-shape',
-            eyes: 'eyes closed',
-            expression: 'very calm, restorative, completely at rest',
-        },
-        transition: 'swinging legs up against the wall while lying back',
+        start: 'sitting sideways next to wall, about to swing legs up',
+        end: 'lying on back, legs straight up resting against wall, arms by sides, L-shape',
+        transition: 'swings both legs up the wall while lying back on mat',
         view: 'side',
     },
 
     'savasana': {
-        start: {
-            body: 'lying on back, gently adjusting position, arms moving to sides, legs straightening out',
-            eyes: 'eyes still open, blinking slowly',
-            expression: 'settling in, preparing to fully relax',
-        },
-        end: {
-            body: 'lying completely flat on back, legs slightly apart and relaxed outward, arms resting a few inches from body with palms facing up, fingers naturally curled, whole body melted into the mat, jaw relaxed',
-            eyes: 'eyes completely closed',
-            expression: 'completely peaceful, deeply relaxed, almost asleep',
-        },
-        transition: 'letting go of all muscle tension, body sinking into the mat',
+        start: 'lying on back, adjusting position, arms moving to sides, legs straightening',
+        end: 'lying flat on back, legs apart, arms at sides palms up, completely relaxed',
+        transition: 'releases all muscle tension, body melts into the mat',
         view: 'three-quarter-above',
     },
 };
@@ -400,29 +232,15 @@ const POSE_FRAMES_DB = {
 // Intro/Outro frame definitions
 const SPECIAL_FRAMES = {
     intro: {
-        start: {
-            body: 'standing at the front edge of the yoga mat, feet together in Mountain Pose, hands at sides, looking forward with a warm welcoming expression',
-            eyes: 'eyes open, warm gaze',
-            expression: 'friendly welcoming smile',
-        },
-        end: {
-            body: 'standing tall on the mat, hands pressed together at heart center in prayer position (Namaste), slight respectful bow of the head',
-            eyes: 'eyes gently closed',
-            expression: 'warm, inviting, peaceful smile',
-        },
+        start: 'standing at front of yoga mat, feet together, hands at sides, Mountain Pose',
+        end: 'standing tall, hands pressed together at heart center, slight bow, Namaste',
+        transition: 'brings palms together at heart center and gives a gentle bow',
         view: 'front',
     },
     outro: {
-        start: {
-            body: 'sitting cross-legged on the mat, slowly bringing hands together at heart center',
-            eyes: 'eyes softly closing',
-            expression: 'grateful and serene',
-        },
-        end: {
-            body: 'sitting cross-legged on the mat, hands pressed together at heart center in prayer position (Namaste), gentle bow of the head, radiating gratitude',
-            eyes: 'eyes closed',
-            expression: 'deeply grateful, peaceful, content smile',
-        },
+        start: 'sitting cross-legged, bringing hands together at heart center',
+        end: 'sitting cross-legged, hands at heart center in Namaste, gentle bow',
+        transition: 'presses palms together at heart and bows head in gratitude',
         view: 'front',
     },
 };
@@ -539,36 +357,40 @@ export function generateAllFramePrompts(parsedScript, settings = {}) {
  * Build Veo 3 Video Prompt (Action prompt for video generation)
  */
 function buildVideoPrompt({ frames, scene }) {
-    // Veo 3 Image-to-Video feature (with both start and end frames) requires the text prompt
-    // to focus primarily on the transition, action, and camera movement. 
-    // It should NOT overly describe the character or environment as the initial/final images provide that context.
+    // Veo 3 Image-to-Video: prompt must describe SPECIFIC body movements.
+    // Do NOT describe character appearance (images provide that).
+    // Focus on: what body parts move, direction, speed, and final position.
     const prompt = [
-        `A slow, smooth, and seamless video transition from the start frame to the end frame.`,
-        `Action: The character naturally and gracefully completes the ${scene.name} yoga movement by ${frames.transition}.`,
-        `The animation is physically accurate, relaxing, and fluid.`,
-        `The camera remains steady.`
+        `Slow, smooth yoga movement.`,
+        `The character ${frames.transition}.`,
+        `Movement is gentle, controlled, and physically accurate.`,
+        `Steady camera, no zoom.`,
     ].join(' ');
 
     return prompt;
 }
 
 /**
- * Build 1 frame prompt (start hoặc end)
+ * Build 1 frame prompt (start or end)
+ * ARCHITECTURE: POSE FIRST → Character → Environment → Style → Composition
+ * Pose description is the MOST IMPORTANT element and goes FIRST for maximum AI attention.
  */
 function buildFramePrompt({ frameType, frameData, scene, config, stylePreset, analysis, view }) {
+    // frameData is now a simple string (pose description)
+    const poseDesc = typeof frameData === 'string' ? frameData : (frameData.body || frameData);
+
     const layers = {
+        pose: `${scene.name} yoga pose: ${poseDesc}`,
         character: config.characterDescription,
-        pose: `${scene.name} yoga pose — ${frameType === 'start' ? 'starting position' : 'final hold position'}, ${frameData.body}`,
-        expression: `${frameData.eyes}, ${frameData.expression}`,
         environment: config.environment,
         style: stylePreset.stylePrompt,
         composition: getCompositionForView(view),
     };
 
+    // POSE is always first — this is the most critical element for accuracy
     const prompt = [
-        layers.character,
         layers.pose,
-        layers.expression,
+        layers.character,
         layers.environment,
         layers.style,
         layers.composition,
@@ -578,7 +400,7 @@ function buildFramePrompt({ frameType, frameData, scene, config, stylePreset, an
         type: frameType,
         prompt,
         layers,
-        poseDescription: frameData.body,
+        poseDescription: poseDesc,
     };
 }
 
@@ -589,11 +411,11 @@ function getFrameData(scene, config) {
     // Special scenes (intro/outro)
     if (scene.type === 'intro') {
         log.debug(`📌 [PromptGen] Using SPECIAL_FRAMES.intro`);
-        return { ...SPECIAL_FRAMES.intro, transition: 'welcoming gesture' };
+        return SPECIAL_FRAMES.intro;
     }
     if (scene.type === 'outro') {
         log.debug(`📌 [PromptGen] Using SPECIAL_FRAMES.outro`);
-        return { ...SPECIAL_FRAMES.outro, transition: 'closing gratitude' };
+        return SPECIAL_FRAMES.outro;
     }
 
     // Tìm trong pose DB
@@ -626,17 +448,9 @@ function buildFallbackFrames(scene) {
         : startDesc;
 
     return {
-        start: {
-            body: `preparing for ${scene.name}, ${startDesc.toLowerCase()}`,
-            eyes: 'eyes open, focused',
-            expression: 'calm and attentive',
-        },
-        end: {
-            body: `holding ${scene.name} pose, ${endDesc.toLowerCase()}`,
-            eyes: 'eyes gently closed',
-            expression: 'calm and peaceful',
-        },
-        transition: `moving into ${scene.name}`,
+        start: `preparing for ${scene.name}, ${startDesc.toLowerCase()}`,
+        end: `holding ${scene.name} pose, ${endDesc.toLowerCase()}`,
+        transition: `moves into ${scene.name} pose`,
         view: 'three-quarter',
     };
 }

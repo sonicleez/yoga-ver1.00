@@ -10,6 +10,7 @@
  */
 
 import { log } from '../logger.js';
+import { GoogleGenAI } from '@google/genai';
 
 // ============================================================
 // API ENDPOINTS (same proxy layer as imageGenerator)
@@ -50,6 +51,21 @@ export const TEXT_MODELS = {
                 costPer1M: { input: 0, output: 0 }, // Free tier
                 maxTokens: 8192,
                 recommended: true,
+            },
+        },
+    },
+    'vertex-ai': {
+        models: {
+            'gemini-3.1-pro-preview': {
+                name: 'Gemini 3.1 Pro (Vertex AI)',
+                costPer1M: { input: 3, output: 18 },
+                maxTokens: 8192,
+                recommended: true,
+            },
+            'gemini-2.5-flash': {
+                name: 'Gemini 2.5 Flash (Vertex AI)',
+                costPer1M: { input: 0.075, output: 0.3 },
+                maxTokens: 8192,
             },
         },
     },
@@ -102,6 +118,13 @@ export async function generateText(systemPrompt, userPrompt, apiKey, options = {
                 });
                 break;
 
+            case 'vertex-ai':
+                result = await vertexAiChat(systemPrompt, userPrompt, apiKey, {
+                    model: model || 'gemini-3.1-pro-preview',
+                    maxTokens, temperature,
+                });
+                break;
+
             default:
                 throw new Error(`Unknown text provider: ${provider}`);
         }
@@ -124,10 +147,21 @@ export async function generateText(systemPrompt, userPrompt, apiKey, options = {
  */
 export function detectTextProvider(apiKey) {
     if (!apiKey) throw new Error('No API key provided for text generation.');
+    
+    // Throw friendly error if old Vertex AI key format is used
+    if (apiKey.includes('|') && apiKey.split('|').length === 3) {
+        throw new Error('Định dạng key cũ! Vui lòng nhập Google AI Studio Key (bắt đầu bằng AIzaSy...) cho Vertex AI (NanoBanana).');
+    }
+
+    // gommo provider doesn't support text generation
+    if (apiKey.includes('|')) return 'vertex-key'; // fallback to vertex-key which has text
     if (apiKey.startsWith('vai-')) return 'vertex-key';
+    if (apiKey.startsWith('AQ.')) return 'vertex-ai';
+    
+    // Both google-ai and vertex-ai use AIzaSy... keys → route the same way
     if (apiKey.startsWith('AIza')) return 'google-ai';
-    // Default fallback
-    return 'vertex-key';
+    
+    return 'google-ai'; // default fallback instead of vertex-key to be safe
 }
 
 /**
@@ -221,3 +255,28 @@ async function googleAiChat(systemPrompt, userPrompt, apiKey, options) {
     const data = await response.json();
     return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
+
+// ============================================================
+// VERTEX AI SDK CHAT
+// ============================================================
+
+async function vertexAiChat(systemPrompt, userPrompt, apiKey, options) {
+    const { model, maxTokens, temperature } = options;
+
+    const ai = new GoogleGenAI({ apiKey });
+    const fullPrompt = systemPrompt ? `${systemPrompt}\n\nUSER SUMMARY: ${userPrompt}` : userPrompt;
+
+    log.debug(`[VertexAI] Generating text with model ${model}`);
+    const response = await ai.models.generateContent({
+        model: model,
+        contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
+        config: {
+            maxOutputTokens: maxTokens,
+            temperature,
+        }
+    });
+
+    return response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
+
+

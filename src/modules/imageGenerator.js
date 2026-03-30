@@ -15,6 +15,8 @@
  */
 
 import { log } from './logger.js';
+import { GoogleGenAI } from '@google/genai';
+
 
 // ============================================================
 // API ROUTING (via proxy)
@@ -124,6 +126,25 @@ export const PROVIDERS = {
             },
         },
     },
+    'vertex-ai': {
+        name: 'Google Vertex AI (NanoBanana)',
+        description: 'Google AI Studio key → Gemini image models via @google/genai SDK',
+        keyPrefix: 'AIza',
+        keyPlaceholder: 'AIzaSy... (Google AI Studio key)',
+        models: {
+            'gemini-3-pro-image-preview': {
+                name: 'Nano Banana Pro ⭐ (Gemini 3 Pro)',
+                resolution: 'Auto',
+                price: 'Pay-as-you-go',
+                recommended: true,
+            },
+            'gemini-3.1-flash-image-preview': {
+                name: 'Nano Banana 2 (Gemini 3.1 Flash)',
+                resolution: 'Auto',
+                price: 'Pay-as-you-go',
+            },
+        },
+    },
 };
 
 // Vertex Key analysis models (for AI-enhanced prompts)
@@ -168,6 +189,8 @@ export async function generateImage(prompt, apiKey, options = {}) {
         return generateImageVertexKey(prompt, apiKey, options);
     } else if (provider === 'gommo') {
         return generateImageGommo(prompt, apiKey, options);
+    } else if (provider === 'vertex-ai') {
+        return generateImageVertexAI(prompt, apiKey, options);
     }
     return generateImageGoogleAI(prompt, apiKey, options);
 }
@@ -213,7 +236,7 @@ export async function verifyApiKey(apiKey, provider = null) {
     }
 
     // For Vertex Key and Google AI, no direct balance check endpoint implemented yet
-    if (prov === 'vertex-key') {
+    if (prov === 'vertex-key' || prov === 'vertex-ai') {
         return { valid: true, message: 'Google/Vertex APIs do not support direct balance check yet. Assume valid.' };
     }
 
@@ -222,10 +245,16 @@ export async function verifyApiKey(apiKey, provider = null) {
 
 /**
  * Auto-detect provider from API key format
+ * vertex-ai: AIzaSy... key — explicitly selected by user (same format as google-ai but routed via SDK)
+ * google-ai: AIzaSy... key — default if provider not forced
+ * vertex-key: vai-... key
+ * gommo: domain|accessToken
  */
 function detectProvider(apiKey) {
     if (apiKey.includes('|')) return 'gommo';
     if (apiKey.startsWith('vai-')) return 'vertex-key';
+    if (apiKey.startsWith('AQ.')) return 'vertex-ai';
+    // AIzaSy keys default to google-ai; vertex-ai must be explicitly selected via options.provider
     return 'google-ai';
 }
 
@@ -321,6 +350,129 @@ async function generateImageGoogleAI(prompt, apiKey, options = {}) {
     log.timeEnd('⏱️ GoogleAI API call');
     log.groupEnd();
     return { base64, blobUrl: base64ToBlobUrl(base64), imageUrl: null };
+}
+
+// ============================================================
+// PROVIDER 1b: Google Vertex AI (via @google/genai SDK)
+// Same key as Google AI (AIzaSy...) but uses SDK + supports
+// reference images as inline parts (multi-reference identity lock)
+// ============================================================
+
+async function generateImageVertexAI(prompt, apiKey, options = {}) {
+    const {
+        model = 'gemini-3-pro-image-preview',
+        aspectRatio = '16:9',
+        referenceImages = [],
+    } = options;
+
+    log.group(`🟢 [VertexAI] generateImageVertexAI()`);
+    log.debug(`📋 Model: ${model} | AR: ${aspectRatio}`);
+    log.debug(`📎 Reference images: ${referenceImages.length}`);
+    log.time('⏱️ VertexAI SDK call');
+
+    const trimmedKey = apiKey?.trim();
+    if (!trimmedKey) {
+        log.error('❌ [VertexAI] No API key provided');
+        log.timeEnd('⏱️ VertexAI SDK call');
+        log.groupEnd();
+        throw new Error('Google Vertex AI API key chưa được cấu hình.');
+    }
+
+    const ai = new GoogleGenAI({ apiKey: trimmedKey });
+
+    // Build parts: reference images FIRST, then text prompt
+    // (Gemini processes images before text for better context)
+    const fullParts = [];
+
+    // Add reference images as inline data parts
+    for (let i = 0; i < referenceImages.length; i++) {
+        const refImg = referenceImages[i];
+        if (!refImg || refImg.length < 100) {
+            log.warn(`⚠️ [VertexAI] Skipping ref image ${i + 1} — too small or empty`);
+            continue;
+        }
+        // Strip data URI prefix if present
+        const base64Data = refImg.startsWith('data:') ? refImg.split(',')[1] : refImg;
+        const mimeType = refImg.startsWith('data:image/png') ? 'image/png'
+            : refImg.startsWith('data:image/webp') ? 'image/webp'
+            : 'image/jpeg';
+        fullParts.push({ inlineData: { data: base64Data, mimeType } });
+        log.debug(`📎 [VertexAI] Added ref image ${i + 1}: ${Math.round(base64Data.length / 1024)}KB (${mimeType})`);
+    }
+
+    // Add text prompt last
+    if (prompt) {
+        fullParts.push({ text: prompt });
+    }
+
+    log.debug(`🔧 [VertexAI] Parts: ${fullParts.filter(p => p.inlineData).length} images + 1 text`);
+
+    // Map model aliases (from scense_director compatibility)
+    const MODEL_MAP = {
+        'google-nano-banana-pro': 'gemini-3-pro-image-preview',
+        'google-nano-banana-2': 'gemini-3.1-flash-image-preview',
+    };
+    const finalModel = MODEL_MAP[model] || model;
+    if (finalModel !== model) {
+        log.debug(`🔄 [VertexAI] Model mapped: ${model} → ${finalModel}`);
+    }
+
+    // Retry wrapper for transient errors (500/503/429)
+    const callWithRetry = async (attempt = 1, maxAttempts = 3) => {
+        try {
+            return await ai.models.generateContent({
+                model: finalModel,
+                contents: [{ parts: fullParts }],
+                config: {
+                    responseModalities: ['TEXT', 'IMAGE'],
+                    imageConfig: {
+                        aspectRatio: aspectRatio || '16:9',
+                    },
+                },
+            });
+        } catch (err) {
+            const msg = String(err?.message || err).toLowerCase();
+            const isPolicyViolation = ['policy', 'safety', 'blocked', 'harmful', 'inappropriate', 'prohibited', 'violation'].some(k => msg.includes(k));
+            const isAuthError = ['unauthorized', 'forbidden', 'invalid api key', 'permission_denied'].some(k => msg.includes(k));
+            const isRetryable = ['500', '503', '429', 'overloaded', 'unavailable', 'internal', 'resource_exhausted'].some(k => msg.includes(k));
+
+            if (isPolicyViolation || isAuthError || !isRetryable || attempt >= maxAttempts) {
+                throw err;
+            }
+            const waitMs = Math.pow(2, attempt) * 1000 + Math.random() * 500;
+            log.warn(`⚠️ [VertexAI] Attempt ${attempt}/${maxAttempts} failed (transient). Retrying in ${(waitMs/1000).toFixed(1)}s...`);
+            await new Promise(r => setTimeout(r, waitMs));
+            return callWithRetry(attempt + 1, maxAttempts);
+        }
+    };
+
+    const response = await callWithRetry();
+
+    // Extract image from response
+    const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+    if (imagePart?.inlineData) {
+        const base64 = imagePart.inlineData.data;
+        log.debug(`✅ [VertexAI] Image received: ${Math.round(base64.length / 1024)}KB base64`);
+        log.timeEnd('⏱️ VertexAI SDK call');
+        log.groupEnd();
+        return { base64, blobUrl: base64ToBlobUrl(base64), imageUrl: null };
+    }
+
+    // Check block reason
+    const blockReason = response.candidates?.[0]?.finishReason;
+    if (blockReason && blockReason !== 'STOP') {
+        log.error(`❌ [VertexAI] Generation blocked: ${blockReason}`);
+        log.timeEnd('⏱️ VertexAI SDK call');
+        log.groupEnd();
+        throw new Error(`Vertex AI: Generation blocked (${blockReason}). Hãy thử prompt khác.`);
+    }
+
+    // Fallback: check text part for error message
+    const textPart = response.candidates?.[0]?.content?.parts?.find(p => p.text);
+    log.error('❌ [VertexAI] No image in response, text:', textPart?.text);
+    log.timeEnd('⏱️ VertexAI SDK call');
+    log.groupEnd();
+    throw new Error(textPart?.text || 'Không nhận được ảnh từ Vertex AI. Hãy thử lại.');
 }
 
 // ============================================================
@@ -863,6 +1015,96 @@ export async function generateSceneImages(framePrompt, apiKey, options = {}) {
     if (startResult !== undefined) result.start = startResult;
     if (endResult !== undefined) result.end = endResult;
     return result;
+}
+// ============================================================
+// PROVIDER 4: Vertex AI via @google/genai SDK
+// Uses Google AI Studio API key (AIzaSy...) — same as google-ai
+// but routed via @google/genai SDK for Gemini image models
+// (NanoBanana Pro / NanoBanana 2)
+// Reference: Scene Director VertexAIProvider.ts
+// ============================================================
+
+async function generateImageVertexAI(prompt, apiKey, options = {}) {
+    const {
+        model = 'gemini-3-pro-image-preview',
+        aspectRatio = '16:9',
+        referenceImages = [],
+    } = options;
+
+    log.group(`🟢 [VertexAI-SDK] generateImageVertexAI()`);
+    log.debug(`📋 Model: ${model} | AR: ${aspectRatio}`);
+    log.debug(`📎 Reference images: ${referenceImages.length}`);
+    log.time('⏱️ VertexAI SDK call');
+
+    try {
+        // Dynamic import @google/genai (ESM)
+        const { GoogleGenAI } = await import('@google/genai');
+        const ai = new GoogleGenAI({ apiKey });
+
+        // Build parts: reference images first, then text prompt
+        // This is the Scene Director pattern for NanoBanana consistency
+        const fullParts = [];
+
+        for (const refImg of referenceImages) {
+            let base64Raw = refImg;
+            let mimeType = 'image/png';
+            if (base64Raw.startsWith('data:')) {
+                const parts = base64Raw.split(';base64,');
+                mimeType = parts[0].replace('data:', '') || 'image/png';
+                base64Raw = parts[1];
+            }
+            fullParts.push({
+                inlineData: { data: base64Raw, mimeType }
+            });
+        }
+
+        // Text prompt last (after images)
+        if (prompt) {
+            fullParts.push({ text: prompt });
+        }
+
+        log.debug(`🔗 [VertexAI-SDK] Calling ai.models.generateContent — model: ${model}`);
+        log.debug(`📦 Parts: ${fullParts.filter(p => p.inlineData).length} img + ${fullParts.filter(p => p.text).length} text`);
+
+        const response = await ai.models.generateContent({
+            model,
+            contents: [{ parts: fullParts }],
+            config: {
+                responseModalities: ['TEXT', 'IMAGE'],
+                imageConfig: {
+                    aspectRatio: aspectRatio || '16:9',
+                },
+            },
+        });
+
+        // Extract image from response
+        const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+
+        if (!imagePart?.inlineData) {
+            const blockReason = response.candidates?.[0]?.finishReason;
+            if (blockReason && blockReason !== 'STOP') {
+                throw new Error(`Vertex AI blocked generation (${blockReason}). Thử prompt khác.`);
+            }
+            log.error('❌ [VertexAI-SDK] No image in response:', JSON.stringify(response).substring(0, 500));
+            throw new Error('Không nhận được ảnh từ Vertex AI. Thử lại.');
+        }
+
+        const base64 = imagePart.inlineData.data;
+        const mimeType = imagePart.inlineData.mimeType || 'image/png';
+        const dataUrl = `data:${mimeType};base64,${base64}`;
+
+        log.debug(`✅ [VertexAI-SDK] Image received: ${Math.round(base64.length / 1024)}KB base64`);
+        log.timeEnd('⏱️ VertexAI SDK call');
+        log.groupEnd();
+
+        return { base64, blobUrl: base64ToBlobUrl(base64, mimeType), imageUrl: dataUrl };
+
+    } catch (err) {
+        log.error('❌ [VertexAI-SDK] Error:', err.message || err);
+        log.timeEnd('⏱️ VertexAI SDK call');
+        log.groupEnd();
+        throw err;
+    }
 }
 
 // ============================================================

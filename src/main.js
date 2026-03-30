@@ -670,7 +670,8 @@ function initSettings() {
             setApiKey('vertex-key', key);
             setState('provider', 'vertex-key');
             updateProviderUI('vertex-key');
-        } else if (key.startsWith('AIza') && currentProvider !== 'google-ai') {
+        } else if (key.startsWith('AIza') && currentProvider !== 'google-ai' && currentProvider !== 'vertex-ai') {
+            // AIzaSy keys can be google-ai or vertex-ai — don't auto-switch if already on vertex-ai
             setApiKey('google-ai', key);
             setState('provider', 'google-ai');
             updateProviderUI('google-ai');
@@ -678,6 +679,10 @@ function initSettings() {
             setApiKey('gommo', key);
             setState('provider', 'gommo');
             updateProviderUI('gommo');
+        } else if (key.startsWith('AQ.') && currentProvider !== 'vertex-ai') {
+            setApiKey('vertex-ai', key);
+            setState('provider', 'vertex-ai');
+            updateProviderUI('vertex-ai');
         }
     });
 
@@ -769,6 +774,7 @@ function updateProviderUI(provider) {
             'google-ai': 'Google AI API key (AIzaSy...). Lưu trên trình duyệt.',
             'vertex-key': 'Vertex Key API key (vai-...). Lưu trên trình duyệt.',
             'gommo': 'Gommo AI key: domain.net|access_token. Lưu trên trình duyệt.',
+            'vertex-ai': 'Google AI Studio key (AIzaSy...). Dùng chung API key với Google AI.',
         };
         $('#key-hint').textContent = hintMap[provider] || 'Lưu trên trình duyệt.';
     }

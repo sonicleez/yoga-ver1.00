@@ -20,6 +20,11 @@ export default defineConfig({
                 changeOrigin: true,
                 rewrite: (path) => path.replace(/^\/api\/gommo/, ''),
             },
+            '/api/vertex-ai': {
+                target: 'https://us-central1-aiplatform.googleapis.com',
+                changeOrigin: true,
+                rewrite: (path) => path.replace(/^\/api\/vertex-ai/, ''),
+            },
         },
     },
     build: {
