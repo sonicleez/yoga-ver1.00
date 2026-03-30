@@ -59,9 +59,9 @@ your-project-id|AQ.YourApiKeyHere...
 ## Bước 5: Sử dụng trong App
 
 1. Mở YogaKids app
-2. Chọn provider **"Google Vertex AI"** từ dropdown
+2. Click tab **"☁️ Google Vertex AI"** để chọn provider
 3. Paste key đã format vào ô API Key
-4. App sẽ tự động detect và chọn provider
+4. Hoặc: paste key trực tiếp → App tự động detect provider
 
 ### Auto-Detection Logic
 
