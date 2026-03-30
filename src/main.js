@@ -509,14 +509,29 @@ function rebuildFromState() {
         $('#btn-download-all').disabled = false;
     }
 
-    // Restore reference image previews
-    if (state.referenceImages?.length > 0) {
-        log.info(`  🖼️ Restoring ${state.referenceImages.length} Character references`);
+    // Restore reference image previews (with fallback for null/undefined)
+    const charRefs = state.referenceImages || [];
+    const envRefs = state.envReferenceImages || [];
+    if (charRefs.length > 0) {
+        log.info(`  🖼️ Restoring ${charRefs.length} Character references`);
         renderRefPreviews();
     }
-    if (state.envReferenceImages?.length > 0) {
-        log.info(`  🏞️ Restoring ${state.envReferenceImages.length} Environment references`);
+    if (envRefs.length > 0) {
+        log.info(`  🏞️ Restoring ${envRefs.length} Environment references`);
         renderEnvRefPreviews();
+    }
+
+    // Restore provider selection UI
+    if (state.provider) {
+        updateProviderUI(state.provider);
+    }
+
+    // Restore image model selection
+    if (state.imageModel) {
+        const modelSelect = $('#model-select');
+        if (modelSelect) {
+            modelSelect.value = state.imageModel;
+        }
     }
 
     // Restore thumbnail

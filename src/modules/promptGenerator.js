@@ -286,10 +286,8 @@ export function generateFramePrompts(scene, settings = {}) {
     const startFrame = buildFramePrompt({
         frameType: 'start',
         frameData: frames.start,
-        scene,
         config,
         stylePreset,
-        analysis,
         view: frames.view,
     });
     log.debug(`🟢 [PromptGen] START prompt (${startFrame.prompt.length} chars): "${startFrame.prompt.substring(0, 80)}..."`);
@@ -298,10 +296,8 @@ export function generateFramePrompts(scene, settings = {}) {
     const endFrame = buildFramePrompt({
         frameType: 'end',
         frameData: frames.end,
-        scene,
         config,
         stylePreset,
-        analysis,
         view: frames.view,
     });
     // Build VIDEO / VEO 3 prompt
@@ -354,47 +350,45 @@ export function generateAllFramePrompts(parsedScript, settings = {}) {
 // ============================================================
 
 /**
- * Build Veo 3 Video Prompt (Action prompt for video generation)
+ * Build Veo 3 Video Prompt (Simple start→end movement description)
+ *
+ * Veo 3 works best with SHORT, CLEAR motion descriptions.
+ * Format: "Start: [pose]. End: [pose]. Movement: [simple transition]."
  */
-function buildVideoPrompt({ frames, scene }) {
-    // Veo 3 Image-to-Video: prompt must describe SPECIFIC body movements.
-    // Do NOT describe character appearance (images provide that).
-    // Focus on: what body parts move, direction, speed, and final position.
-    const prompt = [
-        `Slow, smooth yoga movement.`,
-        `The character ${frames.transition}.`,
-        `Movement is gentle, controlled, and physically accurate.`,
-        `Steady camera, no zoom.`,
-    ].join(' ');
-
-    return prompt;
+function buildVideoPrompt({ frames }) {
+    // Keep it simple: just describe start pose, end pose, and the movement
+    return `Start: ${frames.start}. End: ${frames.end}. Slow, smooth yoga transition.`;
 }
 
 /**
  * Build 1 frame prompt (start or end)
- * ARCHITECTURE: POSE FIRST → Character → Environment → Style → Composition
- * Pose description is the MOST IMPORTANT element and goes FIRST for maximum AI attention.
+ * ARCHITECTURE: Simple, focused prompts for better pose accuracy
+ *
+ * Problem: Long, complex prompts confuse AI and cause weird anatomy (extra limbs, wrong poses)
+ * Solution: Keep it SHORT. Pose + Character + Environment only. No redundant style/composition.
  */
-function buildFramePrompt({ frameType, frameData, scene, config, stylePreset, analysis, view }) {
+function buildFramePrompt({ frameType, frameData, config, stylePreset, view }) {
     // frameData is now a simple string (pose description)
     const poseDesc = typeof frameData === 'string' ? frameData : (frameData.body || frameData);
 
+    // SIMPLIFIED PROMPT: Character doing pose in environment
+    // Format: "[Character] [pose description], [environment]"
     const layers = {
-        pose: `${scene.name} yoga pose: ${poseDesc}`,
+        pose: poseDesc,
         character: config.characterDescription,
         environment: config.environment,
         style: stylePreset.stylePrompt,
         composition: getCompositionForView(view),
     };
 
-    // POSE is always first — this is the most critical element for accuracy
+    // SHORT prompt = better accuracy
+    // Only include: character + pose + environment + view
     const prompt = [
-        layers.pose,
-        layers.character,
-        layers.environment,
-        layers.style,
-        layers.composition,
-    ].filter(Boolean).join('. ') + '.';
+        config.characterDescription,
+        poseDesc,
+        config.environment,
+        getCompositionForView(view),
+    ].filter(Boolean).join(', ') + '.';
 
     return {
         type: frameType,
