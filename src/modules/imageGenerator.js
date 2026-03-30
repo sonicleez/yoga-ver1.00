@@ -1083,23 +1083,27 @@ export async function generateSceneImages(framePrompt, apiKey, options = {}) {
     }
 
     if (!options.targetFrame || options.targetFrame === 'end') {
-        // 2. Generate end frame using the start frame as reference
+        // 2. Generate end frame
+        // IMPORTANT: Use SAME character refs as start frame for consistency
+        // Plus optionally add start frame result for pose continuity
         log.debug(`🔴[SceneImages] Generating END frame...`);
         const endOptions = { ...options };
 
         if (options.targetFrame === 'end') {
-            // we are generating only END. Use the options.referenceImages (which should be prepared by caller)
+            // Generating only END frame - use the reference images from caller
+            // (caller should have set options.referenceImages appropriately)
+            log.debug(`📎[SceneImages] END-only mode: using ${endOptions.referenceImages?.length || 0} refs from caller`);
         } else {
-            if (startResult?.base64) {
-                endOptions.referenceImages = [startResult.base64];
-                if (options.envReferenceImages && options.envReferenceImages.length > 0) {
-                    endOptions.referenceImages.push(...options.envReferenceImages);
-                }
-                log.debug(`📎[SceneImages] Using START frame + ENV as reference for END frame(${endOptions.referenceImages.length} refs total)`);
-            } else {
-                endOptions.referenceImages = [];
-                log.warn(`⚠️[SceneImages] No base64 from START frame, END frame has no reference`);
-            }
+            // Generating both frames - use SAME character refs as start frame
+            // This ensures character consistency between start and end
+            const charRefs = options.referenceImages || [];
+            const envRefs = options.envReferenceImages || [];
+
+            // Combine: character refs (priority) + env refs
+            // Note: Imagen 3.0 supports max 4 reference images
+            endOptions.referenceImages = [...charRefs, ...envRefs].slice(0, 4);
+
+            log.debug(`📎[SceneImages] END frame refs: ${charRefs.length} char + ${envRefs.length} env = ${endOptions.referenceImages.length} total`);
         }
 
         endResult = await generateImage(
