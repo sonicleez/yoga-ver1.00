@@ -667,6 +667,7 @@ function initSettings() {
     const state = getState();
 
     // ---- Provider tabs ----
+    // Note: Don't set API key here - rebuildFromState() will do it after all init is complete
     updateProviderUI(state.provider);
 
     $$('.provider-tab').forEach(tab => {
@@ -682,7 +683,7 @@ function initSettings() {
 
     // ---- API key ----
     const apiKeyInput = $('#api-key');
-    apiKeyInput.value = getActiveApiKey();
+    // Don't set value here - rebuildFromState() handles this
     apiKeyInput.addEventListener('input', (e) => {
         const key = e.target.value;
         const currentProvider = getState().provider;
