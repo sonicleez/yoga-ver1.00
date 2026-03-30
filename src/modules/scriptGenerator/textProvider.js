@@ -46,11 +46,16 @@ export const TEXT_MODELS = {
     },
     'google-ai': {
         models: {
-            'gemini-2.5-flash': {
-                name: 'Gemini 2.5 Flash',
-                costPer1M: { input: 0, output: 0 }, // Free tier
+            'gemini-2.5-flash-lite': {
+                name: 'Gemini 2.5 Flash Lite ⚡',
+                costPer1M: { input: 0.075, output: 0.3 },
                 maxTokens: 8192,
                 recommended: true,
+            },
+            'gemini-2.5-flash': {
+                name: 'Gemini 2.5 Flash',
+                costPer1M: { input: 0.15, output: 0.6 },
+                maxTokens: 8192,
             },
         },
     },
@@ -113,7 +118,7 @@ export async function generateText(systemPrompt, userPrompt, apiKey, options = {
 
             case 'google-ai':
                 result = await googleAiChat(systemPrompt, userPrompt, apiKey, {
-                    model: model || 'gemini-2.5-flash',
+                    model: model || 'gemini-2.5-flash-lite',
                     maxTokens, temperature,
                 });
                 break;
@@ -147,20 +152,20 @@ export async function generateText(systemPrompt, userPrompt, apiKey, options = {
  */
 export function detectTextProvider(apiKey) {
     if (!apiKey) throw new Error('No API key provided for text generation.');
-    
-    // Throw friendly error if old Vertex AI key format is used
-    if (apiKey.includes('|') && apiKey.split('|').length === 3) {
-        throw new Error('Định dạng key cũ! Vui lòng nhập Google AI Studio Key (bắt đầu bằng AIzaSy...) cho Vertex AI (NanoBanana).');
+
+    // Vertex AI key format: "projectId|AQ.xxx" or "AQ.xxx"
+    // These work with Google AI endpoint (generativelanguage.googleapis.com)
+    if (apiKey.includes('|AQ.') || apiKey.startsWith('AQ.')) {
+        return 'google-ai'; // Route to google-ai endpoint which works with AQ keys
     }
 
     // gommo provider doesn't support text generation
     if (apiKey.includes('|')) return 'vertex-key'; // fallback to vertex-key which has text
     if (apiKey.startsWith('vai-')) return 'vertex-key';
-    if (apiKey.startsWith('AQ.')) return 'vertex-ai';
-    
+
     // Both google-ai and vertex-ai use AIzaSy... keys → route the same way
     if (apiKey.startsWith('AIza')) return 'google-ai';
-    
+
     return 'google-ai'; // default fallback instead of vertex-key to be safe
 }
 
@@ -224,7 +229,14 @@ async function vertexKeyChat(systemPrompt, userPrompt, apiKey, options) {
 async function googleAiChat(systemPrompt, userPrompt, apiKey, options) {
     const { model, maxTokens, temperature } = options;
 
-    const url = `${GOOGLE_AI_BASE}/${model}:generateContent?key=${apiKey}`;
+    // Extract token from composite key format: "projectId|AQ.xxx" → "AQ.xxx"
+    let token = apiKey;
+    if (apiKey.includes('|')) {
+        const parts = apiKey.split('|');
+        token = parts.slice(1).join('|'); // Get everything after first |
+    }
+
+    const url = `${GOOGLE_AI_BASE}/${model}:generateContent?key=${token}`;
     const body = {
         system_instruction: {
             parts: [{ text: systemPrompt }],
