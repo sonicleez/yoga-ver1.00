@@ -3,7 +3,7 @@
  *
  * Provider 1: Google AI Direct (generativelanguage.googleapis.com)
  *   - Model: gemini-3.1-flash-image-preview
- *   - Auth: API key in URL param
+ *   - Auth: API key (AIzaSy...) in URL param
  *   - Response: inline base64 image
  *
  * Provider 2: Vertex Key (vertex-key.com)
@@ -11,23 +11,20 @@
  *   - Auth: Bearer token (vai-...)
  *   - Endpoint: /api/v1/images/generations
  *   - Response: url or b64_json
- *   - Also: /api/v1/chat/completions for AI analysis
  *
- * Provider 3: Google Vertex (via @google/genai SDK)
- *   - Uses official Google GenAI SDK
- *   - Models: gemini-3-pro-image-preview, gemini-3.1-flash-image-preview
- *   - Auth: Google AI Studio API Key (AIzaSy...)
- *   - Response: inline base64 image
+ * Provider 3: Gommo AI (api.gommo.net)
+ *   - Models: google_nano_banana_pro, z-image, kling
+ *   - Auth: domain|token format
+ *   - Async polling pattern
  *
- * Provider 4: Vertex AI Imagen (us-central1-aiplatform.googleapis.com)
- *   - Model: imagen-4.0-generate-001
- *   - Auth: AQ.* token in URL param
- *   - Endpoint: /v1/projects/{project}/locations/us-central1/publishers/google/models/{model}:predict
- *   - Response: base64 images in predictions array
+ * Provider 4: Google Vertex AI (us-central1-aiplatform.googleapis.com)
+ *   - Image: Imagen 4.0/3.0 models
+ *   - Text: Gemini 2.5 Flash Lite (via generativelanguage.googleapis.com)
+ *   - Auth: projectId|AQ.xxx format
+ *   - Key works for both Imagen API and Google AI text endpoint
  */
 
 import { log } from './logger.js';
-// Note: @google/genai is dynamically imported in generateImageVertexAI_SDK when needed
 
 // ============================================================
 // API ROUTING (via proxy)
@@ -138,9 +135,9 @@ export const PROVIDERS = {
             },
         },
     },
-    'vertex-ai': {
-        name: 'Google Vertex AI (Imagen)',
-        description: 'Vertex AI Imagen 4.0 - High quality image generation',
+    'google-vertex': {
+        name: 'Google Vertex AI',
+        description: 'Google Cloud Vertex AI - Imagen (ảnh) + Gemini (text)',
         keyPrefix: '',
         keyPlaceholder: 'projectId|AQ.xxx (e.g. fourth-gantry-483803-q8|AQ.Ab8RN6Kr...)',
         models: {
@@ -201,7 +198,7 @@ export async function generateImage(prompt, apiKey, options = {}) {
         return generateImageVertexKey(prompt, apiKey, options);
     } else if (provider === 'gommo') {
         return generateImageGommo(prompt, apiKey, options);
-    } else if (provider === 'vertex-ai') {
+    } else if (provider === 'google-vertex') {
         return generateImageGoogleVertex(prompt, apiKey, options);
     }
     return generateImageGoogleAI(prompt, apiKey, options);
@@ -247,8 +244,8 @@ export async function verifyApiKey(apiKey, provider = null) {
         }
     }
 
-    // For Vertex Key and Google AI, no direct balance check endpoint implemented yet
-    if (prov === 'vertex-key' || prov === 'vertex-ai') {
+    // For Vertex Key and Google Vertex, no direct balance check endpoint implemented yet
+    if (prov === 'vertex-key' || prov === 'google-vertex') {
         return { valid: true, message: 'Google/Vertex APIs do not support direct balance check yet. Assume valid.' };
     }
 
@@ -257,15 +254,15 @@ export async function verifyApiKey(apiKey, provider = null) {
 
 /**
  * Auto-detect provider from API key format
- * vertex-ai: projectId|AQ.* or AQ.* — Vertex AI Imagen API
- * google-ai: AIzaSy... key — default if provider not forced
- * vertex-key: vai-... key
+ * google-vertex: projectId|AQ.* or AQ.* — Google Cloud Vertex AI
+ * google-ai: AIzaSy... key — Google AI Studio
+ * vertex-key: vai-... key — vertex-key.com service
  * gommo: domain|accessToken (domain contains '.')
  */
 function detectProvider(apiKey) {
     if (apiKey.startsWith('vai-')) return 'vertex-key';
-    // Check for Vertex AI: contains |AQ. or starts with AQ.
-    if (apiKey.includes('|AQ.') || apiKey.startsWith('AQ.')) return 'vertex-ai';
+    // Check for Google Vertex: contains |AQ. or starts with AQ.
+    if (apiKey.includes('|AQ.') || apiKey.startsWith('AQ.')) return 'google-vertex';
     // Gommo: domain|token (domain has a dot like "10xyoutube.net|xxx")
     if (apiKey.includes('|') && apiKey.split('|')[0].includes('.')) return 'gommo';
     // AIzaSy keys default to google-ai

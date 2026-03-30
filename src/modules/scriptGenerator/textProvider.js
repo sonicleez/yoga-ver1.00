@@ -1,19 +1,19 @@
 /**
  * TEXT PROVIDER — Provider-agnostic text generation abstraction
- * 
- * Wraps all current and future AI providers for text generation (chat completions).
- * Currently supports:
- *   - Vertex Key (vai-*) → /api/vertex-key/api/v1/chat/completions
- *   - Google AI Direct (AIza*) → /api/google-ai/v1beta/models
- * 
- * Reuses the same proxy endpoints as imageGenerator.js to avoid duplication.
+ *
+ * Supports:
+ *   - google-vertex (projectId|AQ.xxx) → Google AI endpoint with Gemini models
+ *   - google-ai (AIzaSy...) → Google AI Direct
+ *   - vertex-key (vai-...) → vertex-key.com service
+ *
+ * Note: google-vertex uses the same Google AI endpoint (generativelanguage.googleapis.com)
+ * because AQ.xxx keys work with both Imagen API and Google AI text endpoint.
  */
 
 import { log } from '../logger.js';
-import { GoogleGenAI } from '@google/genai';
 
 // ============================================================
-// API ENDPOINTS (same proxy layer as imageGenerator)
+// API ENDPOINTS
 // ============================================================
 
 const GOOGLE_AI_BASE = '/api/google-ai/v1beta/models';
@@ -28,7 +28,7 @@ export const TEXT_MODELS = {
         models: {
             'gem/gemini-3-flash-nothinking': {
                 name: 'Gemini 3 Flash (Fast)',
-                costPer1M: { input: 1, output: 6 }, // USD
+                costPer1M: { input: 1, output: 6 },
                 maxTokens: 8192,
                 recommended: true,
             },
@@ -59,17 +59,17 @@ export const TEXT_MODELS = {
             },
         },
     },
-    'vertex-ai': {
+    'google-vertex': {
         models: {
-            'gemini-3.1-pro-preview': {
-                name: 'Gemini 3.1 Pro (Vertex AI)',
-                costPer1M: { input: 3, output: 18 },
+            'gemini-2.5-flash-lite': {
+                name: 'Gemini 2.5 Flash Lite ⚡',
+                costPer1M: { input: 0.075, output: 0.3 },
                 maxTokens: 8192,
                 recommended: true,
             },
             'gemini-2.5-flash': {
-                name: 'Gemini 2.5 Flash (Vertex AI)',
-                costPer1M: { input: 0.075, output: 0.3 },
+                name: 'Gemini 2.5 Flash',
+                costPer1M: { input: 0.15, output: 0.6 },
                 maxTokens: 8192,
             },
         },
@@ -82,7 +82,7 @@ export const TEXT_MODELS = {
 
 /**
  * Generate text using the appropriate provider.
- * 
+ *
  * @param {string} systemPrompt - System instructions
  * @param {string} userPrompt - User content
  * @param {string} apiKey - API key (auto-detects provider)
@@ -90,7 +90,7 @@ export const TEXT_MODELS = {
  * @param {string} options.model - Model identifier
  * @param {number} options.maxTokens - Max output tokens (default: 4096)
  * @param {number} options.temperature - Temperature 0-1 (default: 0.7)
- * @param {string} options.provider - Force provider (google-ai, vertex-key)
+ * @param {string} options.provider - Force provider
  * @returns {Promise<string>} Generated text content
  */
 export async function generateText(systemPrompt, userPrompt, apiKey, options = {}) {
@@ -123,9 +123,9 @@ export async function generateText(systemPrompt, userPrompt, apiKey, options = {
                 });
                 break;
 
-            case 'vertex-ai':
-                result = await vertexAiChat(systemPrompt, userPrompt, apiKey, {
-                    model: model || 'gemini-3.1-pro-preview',
+            case 'google-vertex':
+                result = await googleVertexChat(systemPrompt, userPrompt, apiKey, {
+                    model: model || 'gemini-2.5-flash-lite',
                     maxTokens, temperature,
                 });
                 break;
@@ -149,24 +149,31 @@ export async function generateText(systemPrompt, userPrompt, apiKey, options = {
 
 /**
  * Detect provider from API key format
+ *
+ * google-vertex: projectId|AQ.xxx or AQ.xxx → Google Cloud Vertex AI
+ * google-ai: AIzaSy... → Google AI Studio
+ * vertex-key: vai-... → vertex-key.com service
  */
 export function detectTextProvider(apiKey) {
     if (!apiKey) throw new Error('No API key provided for text generation.');
 
-    // Vertex AI key format: "projectId|AQ.xxx" or "AQ.xxx"
-    // These work with Google AI endpoint (generativelanguage.googleapis.com)
-    if (apiKey.includes('|AQ.') || apiKey.startsWith('AQ.')) {
-        return 'google-ai'; // Route to google-ai endpoint which works with AQ keys
-    }
-
-    // gommo provider doesn't support text generation
-    if (apiKey.includes('|')) return 'vertex-key'; // fallback to vertex-key which has text
+    // vertex-key.com service
     if (apiKey.startsWith('vai-')) return 'vertex-key';
 
-    // Both google-ai and vertex-ai use AIzaSy... keys → route the same way
+    // Google Vertex AI key format: "projectId|AQ.xxx" or "AQ.xxx"
+    if (apiKey.includes('|AQ.') || apiKey.startsWith('AQ.')) {
+        return 'google-vertex';
+    }
+
+    // Gommo format (domain|token) - doesn't support text, fallback to vertex-key
+    if (apiKey.includes('|') && apiKey.split('|')[0].includes('.')) {
+        return 'vertex-key';
+    }
+
+    // Google AI Studio keys (AIzaSy...)
     if (apiKey.startsWith('AIza')) return 'google-ai';
 
-    return 'google-ai'; // default fallback instead of vertex-key to be safe
+    return 'google-ai'; // default fallback
 }
 
 /**
@@ -179,7 +186,7 @@ export function getTextModels(provider) {
 }
 
 /**
- * Get the recommended (cheapest fast) model for a provider
+ * Get the recommended model for a provider
  */
 export function getDefaultTextModel(provider) {
     const models = getTextModels(provider);
@@ -187,7 +194,7 @@ export function getDefaultTextModel(provider) {
 }
 
 // ============================================================
-// VERTEX KEY CHAT
+// VERTEX KEY CHAT (vertex-key.com)
 // ============================================================
 
 async function vertexKeyChat(systemPrompt, userPrompt, apiKey, options) {
@@ -223,20 +230,13 @@ async function vertexKeyChat(systemPrompt, userPrompt, apiKey, options) {
 }
 
 // ============================================================
-// GOOGLE AI DIRECT CHAT
+// GOOGLE AI DIRECT CHAT (AIzaSy... keys)
 // ============================================================
 
 async function googleAiChat(systemPrompt, userPrompt, apiKey, options) {
     const { model, maxTokens, temperature } = options;
 
-    // Extract token from composite key format: "projectId|AQ.xxx" → "AQ.xxx"
-    let token = apiKey;
-    if (apiKey.includes('|')) {
-        const parts = apiKey.split('|');
-        token = parts.slice(1).join('|'); // Get everything after first |
-    }
-
-    const url = `${GOOGLE_AI_BASE}/${model}:generateContent?key=${token}`;
+    const url = `${GOOGLE_AI_BASE}/${model}:generateContent?key=${apiKey}`;
     const body = {
         system_instruction: {
             parts: [{ text: systemPrompt }],
@@ -269,26 +269,51 @@ async function googleAiChat(systemPrompt, userPrompt, apiKey, options) {
 }
 
 // ============================================================
-// VERTEX AI SDK CHAT
+// GOOGLE VERTEX CHAT (projectId|AQ.xxx keys)
+// Uses Google AI endpoint (generativelanguage.googleapis.com)
+// because AQ.xxx keys work with this endpoint
 // ============================================================
 
-async function vertexAiChat(systemPrompt, userPrompt, apiKey, options) {
+async function googleVertexChat(systemPrompt, userPrompt, apiKey, options) {
     const { model, maxTokens, temperature } = options;
 
-    const ai = new GoogleGenAI({ apiKey });
-    const fullPrompt = systemPrompt ? `${systemPrompt}\n\nUSER SUMMARY: ${userPrompt}` : userPrompt;
+    // Extract token from composite key format: "projectId|AQ.xxx" → "AQ.xxx"
+    let token = apiKey;
+    if (apiKey.includes('|')) {
+        const parts = apiKey.split('|');
+        token = parts.slice(1).join('|'); // Get everything after first |
+    }
 
-    log.debug(`[VertexAI] Generating text with model ${model}`);
-    const response = await ai.models.generateContent({
-        model: model,
-        contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
-        config: {
+    log.debug(`[GoogleVertex] Text generation with model ${model}`);
+
+    const url = `${GOOGLE_AI_BASE}/${model}:generateContent?key=${token}`;
+    const body = {
+        system_instruction: {
+            parts: [{ text: systemPrompt }],
+        },
+        contents: [
+            {
+                role: 'user',
+                parts: [{ text: userPrompt }],
+            },
+        ],
+        generationConfig: {
             maxOutputTokens: maxTokens,
             temperature,
-        }
+        },
+    };
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
     });
 
-    return response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error?.error?.message || `Google Vertex chat error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
-
-

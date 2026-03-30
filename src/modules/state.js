@@ -28,7 +28,7 @@ const state = {
         'google-ai': '',
         'vertex-key': '',
         'gommo': '',
-        'vertex-ai': '',
+        'google-vertex': '',
     },
     provider: 'google-ai',
     imageModel: '',

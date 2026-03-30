@@ -674,11 +674,11 @@ function initSettings() {
             setApiKey('google-ai', key);
             setState('provider', 'google-ai');
             updateProviderUI('google-ai');
-        } else if ((key.includes('|AQ.') || key.startsWith('AQ.')) && currentProvider !== 'vertex-ai') {
-            // Vertex AI: projectId|AQ.xxx or AQ.xxx
-            setApiKey('vertex-ai', key);
-            setState('provider', 'vertex-ai');
-            updateProviderUI('vertex-ai');
+        } else if ((key.includes('|AQ.') || key.startsWith('AQ.')) && currentProvider !== 'google-vertex') {
+            // Google Vertex AI: projectId|AQ.xxx or AQ.xxx
+            setApiKey('google-vertex', key);
+            setState('provider', 'google-vertex');
+            updateProviderUI('google-vertex');
         } else if (key.includes('|') && key.split('|')[0].includes('.') && currentProvider !== 'gommo') {
             // Gommo: domain.net|token
             setApiKey('gommo', key);
@@ -775,7 +775,7 @@ function updateProviderUI(provider) {
             'google-ai': 'Google AI API key (AIzaSy...). Lưu trên trình duyệt.',
             'vertex-key': 'Vertex Key API key (vai-...). Lưu trên trình duyệt.',
             'gommo': 'Gommo AI key: domain.net|access_token. Lưu trên trình duyệt.',
-            'vertex-ai': 'Google AI Studio key (AIzaSy...). Dùng chung API key với Google AI.',
+            'google-vertex': 'Google Vertex AI key (projectId|AQ.xxx). Dùng cho cả ảnh Imagen và text Gemini.',
         };
         $('#key-hint').textContent = hintMap[provider] || 'Lưu trên trình duyệt.';
     }
