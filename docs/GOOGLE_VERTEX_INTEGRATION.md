@@ -7,7 +7,18 @@ Hướng dẫn tích hợp Google Cloud Vertex AI cho YogaKids app - sử dụng
 | Feature | API Endpoint | Models |
 |---------|--------------|--------|
 | **Image Generation** | `us-central1-aiplatform.googleapis.com` | Imagen 4.0, Imagen 3.0 |
+| **Image + Reference** | `us-central1-aiplatform.googleapis.com` | Imagen 3.0 Capability |
 | **Text Generation** | `generativelanguage.googleapis.com` | Gemini 2.5 Flash Lite |
+
+### Model Selection
+
+| Model | Use Case | Reference Images |
+|-------|----------|------------------|
+| `imagen-4.0-generate-001` | Best quality, no reference | ❌ Not supported |
+| `imagen-3.0-capability-001` | Character consistency | ✅ Up to 4 images |
+| `imagen-3.0-generate-001` | Standard generation | ❌ Not supported |
+
+**Auto-selection:** Khi có reference images, app tự động chọn `imagen-3.0-capability-001`.
 
 ## Bước 1: Tạo Google Cloud Project
 
@@ -83,11 +94,12 @@ App tự động nhận diện provider dựa trên format key:
 POST https://us-central1-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/us-central1/publishers/google/models/{MODEL}:predict?key={API_KEY}
 
 # Models:
-# - imagen-4.0-generate-001 (recommended)
+# - imagen-4.0-generate-001 (best quality, no reference)
+# - imagen-3.0-capability-001 (supports reference images)
 # - imagen-3.0-generate-001
 ```
 
-**Request Body:**
+**Request Body (Standard):**
 ```json
 {
   "instances": [
@@ -102,6 +114,39 @@ POST https://us-central1-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/loca
 }
 ```
 
+**Request Body (With Reference Images):**
+```json
+{
+  "instances": [{
+    "prompt": "[1] doing tree pose yoga on a purple mat",
+    "referenceImages": [
+      {
+        "referenceType": "REFERENCE_TYPE_SUBJECT",
+        "referenceId": 1,
+        "referenceImage": {
+          "bytesBase64Encoded": "BASE64_CHARACTER_IMAGE"
+        },
+        "subjectImageConfig": {
+          "subjectDescription": "a cute cartoon girl with purple hair",
+          "subjectType": "SUBJECT_TYPE_PERSON"
+        }
+      }
+    ]
+  }],
+  "parameters": {
+    "sampleCount": 1,
+    "aspectRatio": "16:9",
+    "personGeneration": "allow_all"
+  }
+}
+```
+
+**Reference Image Notes:**
+- Model: Phải dùng `imagen-3.0-capability-001`
+- Max 4 reference images per request
+- Dùng `[1]` trong prompt để refer đến subject
+- All images share `referenceId: 1` cho consistency tốt hơn
+
 **Response:**
 ```json
 {
@@ -112,6 +157,7 @@ POST https://us-central1-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/loca
     }
   ]
 }
+```
 ```
 
 ### Text Generation (Gemini)
