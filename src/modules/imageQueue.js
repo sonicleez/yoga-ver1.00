@@ -270,10 +270,24 @@ async function processQueue() {
         }
 
         try {
+            // Merge targetFrame from framePrompt into options if present
+            const effectiveOptions = { ...nextItem.options };
+            if (nextItem.framePrompt.targetFrame) {
+                effectiveOptions.targetFrame = nextItem.framePrompt.targetFrame;
+                log.debug(`🎯 [Queue] targetFrame: ${effectiveOptions.targetFrame} (partial generation)`);
+
+                // If generating only END frame and we have existing start, add it to references
+                if (nextItem.framePrompt.targetFrame === 'end' && nextItem.framePrompt.existingStartImage) {
+                    const charRefs = effectiveOptions.referenceImages || [];
+                    effectiveOptions.referenceImages = [nextItem.framePrompt.existingStartImage, ...charRefs].slice(0, 4);
+                    log.debug(`📎 [Queue] Added existing start frame to refs for character consistency`);
+                }
+            }
+
             const result = await generateSceneImages(
                 nextItem.framePrompt,
                 nextItem.options.apiKey,
-                nextItem.options
+                effectiveOptions
             );
 
             if (isCancelled) {

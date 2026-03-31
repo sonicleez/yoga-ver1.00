@@ -1418,30 +1418,56 @@ function generateAllImages() {
         return;
     }
 
-    // Filter out scenes that already have successfully generated images
+    // Filter and determine which frames need generating
     const existingImages = state.generatedImages || {};
-    const pendingPrompts = state.framePrompts.filter(fp => {
+    const pendingPrompts = [];
+    let skippedCount = 0;
+    let partialCount = 0;
+
+    for (const fp of state.framePrompts) {
         const img = existingImages[fp.sceneIndex];
-        // Skip if both start AND end frames exist
-        return !(img && img.start && img.end);
-    });
+        const hasStart = img && img.start && img.start.base64;
+        const hasEnd = img && img.end && img.end.base64;
+
+        if (hasStart && hasEnd) {
+            // Both frames exist - skip entirely
+            skippedCount++;
+            continue;
+        }
+
+        // Determine which frame(s) to generate
+        let targetFrame = null;
+        let existingStartImage = null;
+        if (hasStart && !hasEnd) {
+            targetFrame = 'end';
+            existingStartImage = img.start.base64; // Pass existing start for reference
+            partialCount++;
+        } else if (!hasStart && hasEnd) {
+            targetFrame = 'start';
+            partialCount++;
+        }
+        // If neither exists, targetFrame stays null → generate both
+
+        pendingPrompts.push({ ...fp, targetFrame, existingStartImage });
+    }
 
     if (pendingPrompts.length === 0) {
         showToast('✅ Tất cả scenes đã được generate!', 'success');
         return;
     }
 
-    const skippedCount = state.framePrompts.length - pendingPrompts.length;
+    const totalFrames = pendingPrompts.reduce((sum, fp) => sum + (fp.targetFrame ? 1 : 2), 0);
 
     log.group('🖼️ [App] generateAllImages()');
     log.debug(`⚙️ [App] Provider: ${state.provider} | Model: ${state.imageModel} | AR: ${state.aspectRatio}`);
     log.debug(`📎 [App] Reference images: ${state.referenceImages?.length || 0}`);
-    log.debug(`⏭️ [App] Skipping ${skippedCount} already-generated scenes`);
-    log.debug(`🎯 [App] Scenes to generate: ${pendingPrompts.length} (${pendingPrompts.length * 2} images)`);
+    log.debug(`⏭️ [App] Skipping ${skippedCount} fully-generated scenes`);
+    log.debug(`🔄 [App] Partial scenes (1 frame only): ${partialCount}`);
+    log.debug(`🎯 [App] Scenes to process: ${pendingPrompts.length} (${totalFrames} images total)`);
     log.groupEnd();
 
-    if (skippedCount > 0) {
-        showToast(`⏭️ Bỏ qua ${skippedCount} scenes đã có, tiếp tục ${pendingPrompts.length} scenes còn lại`, 'info');
+    if (skippedCount > 0 || partialCount > 0) {
+        showToast(`⏭️ Bỏ qua ${skippedCount} scenes đã có đủ, tiếp tục ${pendingPrompts.length} scenes (${totalFrames} ảnh)`, 'info');
     }
 
     // Disable all regen buttons while generating all
@@ -1453,11 +1479,15 @@ function generateAllImages() {
     pendingPrompts.forEach(fp => {
         const startEl = $(`#frame-start-${fp.sceneIndex}`);
         const endEl = $(`#frame-end-${fp.sceneIndex}`);
-        if (startEl) startEl.innerHTML = `<div class="gallery-frame-placeholder pending">⏳ Đang chờ</div>`;
-        if (endEl) endEl.innerHTML = `<div class="gallery-frame-placeholder pending">⏳ Đang chờ</div>`;
+        if (!fp.targetFrame || fp.targetFrame === 'start') {
+            if (startEl) startEl.innerHTML = `<div class="gallery-frame-placeholder pending">⏳ Đang chờ</div>`;
+        }
+        if (!fp.targetFrame || fp.targetFrame === 'end') {
+            if (endEl) endEl.innerHTML = `<div class="gallery-frame-placeholder pending">⏳ Đang chờ</div>`;
+        }
     });
 
-    // Enqueue only pending scenes — queue will process them sequentially
+    // Enqueue scenes with their targetFrame info
     enqueueAll(pendingPrompts, {
         apiKey: getActiveApiKey(),
         provider: state.provider,
