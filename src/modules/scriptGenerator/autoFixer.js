@@ -160,11 +160,17 @@ export async function fixWithAI(script, issues, config, apiKey) {
     const provider = detectTextProvider(apiKey);
     const model = getDefaultTextModel(provider);
 
+    // Dynamic maxTokens: estimate enough tokens to fit the full fixed script
+    // Use 1.3x the estimated word count of the original script as a safety buffer
+    const estimatedTokens = Math.ceil((script.split(/\s+/).length * 1.35));
+    const maxTokens = Math.min(16384, Math.max(6000, estimatedTokens));
+
     const userPrompt = `SCRIPT CONFIG:
 - Category: ${config.category}
 - Audience: ${config.niche?.audience || 'adults'}
 - Level: ${config.niche?.level || 'beginner'}
 - Language: ${config.language || 'en'}
+- Required pose count: ${config.session?.poseCount || config._poseNames?.length || 12}
 
 ISSUES TO FIX:
 ${issues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}
@@ -172,13 +178,14 @@ ${issues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}
 ORIGINAL SCRIPT:
 ${script}
 
-Please rewrite this script fixing ONLY the issues listed above. Keep everything else the same.`;
+Please rewrite this script fixing ONLY the issues listed above. Keep everything else the same.
+CRITICAL: You MUST include ALL ${config.session?.poseCount || config._poseNames?.length || 12} poses — do not skip or truncate any.`;
 
     const fixedScript = await generateText(
         FIX_SYSTEM_PROMPT,
         userPrompt,
         apiKey,
-        { model, maxTokens: 4096, temperature: 0.5, provider }
+        { model, maxTokens, temperature: 0.5, provider }
     );
 
     // Clean up: remove any markdown code blocks if AI wrapped it

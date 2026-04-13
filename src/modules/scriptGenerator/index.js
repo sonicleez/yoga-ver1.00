@@ -144,6 +144,15 @@ export async function generateScript(config, apiKey, callbacks = {}) {
             mustInclude: mergedConfig.poses.mustInclude,
         });
 
+        // ⚠️ Validate pose sequence length — surface the problem immediately
+        const requestedCount = mergedConfig.session.poseCount;
+        if (poseSequence.length < requestedCount) {
+            log.warn(`⚠️ Pose sequence shorter than requested: got ${poseSequence.length}, wanted ${requestedCount}. Check excludePoses and mustInclude list.`);
+        }
+        if (poseSequence.length === 0) {
+            throw new Error(`Pose sequence is empty! poseCount=${requestedCount}, flow=${mergedConfig.poses.flow}, level=${mergedConfig.niche.level}`);
+        }
+
         log.info(`🧘 Pose sequence: ${poseSequence.map(p => p.name).join(' → ')}`);
         callbacks.onPoseSequence?.(poseSequence);
 

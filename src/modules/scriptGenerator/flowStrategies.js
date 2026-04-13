@@ -162,12 +162,32 @@ function buildPhaseSequence(strategy, totalCount, filters) {
     const { mustInclude = [] } = filters;
 
     // Reserve spots for mustInclude poses
-    const reservedCount = mustInclude.length;
+    const reservedCount = mustInclude.filter(id => {
+        // Only count mustInclude poses that actually exist in the DB
+        return findPoses({ exclude: [] }).some(p => p.id === id);
+    }).length;
     const availableSlots = totalCount - reservedCount;
 
-    for (const phase of strategy.phases) {
-        // Calculate how many poses this phase gets
-        const phaseCount = Math.max(1, Math.round(availableSlots * phase.ratio));
+    // ── Compute per-phase slot counts with rounding correction ──
+    // Use floor() for each phase, then distribute remaining slots to
+    // phases with the highest fractional portion (largest-remainder method).
+    const rawCounts = strategy.phases.map(phase => availableSlots * phase.ratio);
+    const floorCounts = rawCounts.map(c => Math.max(1, Math.floor(c)));
+    let allocated = floorCounts.reduce((a, b) => a + b, 0);
+    let remainder = availableSlots - allocated;
+
+    // Sort by fractional part descending and give +1 to those phases
+    if (remainder > 0) {
+        const fractions = rawCounts.map((c, i) => ({ i, frac: c - Math.floor(c) }));
+        fractions.sort((a, b) => b.frac - a.frac);
+        for (let k = 0; k < remainder && k < fractions.length; k++) {
+            floorCounts[fractions[k].i]++;
+        }
+    }
+
+    for (let phaseIdx = 0; phaseIdx < strategy.phases.length; phaseIdx++) {
+        const phase = strategy.phases[phaseIdx];
+        const phaseCount = floorCounts[phaseIdx];
 
         // Build filter for this phase
         const phaseFilter = { ...filters };
@@ -185,13 +205,27 @@ function buildPhaseSequence(strategy, totalCount, filters) {
 
         const available = findPoses(phaseFilter);
 
-        // Shuffle and pick
+        // Shuffle and pick up to phaseCount (may pick fewer if not enough available)
         const shuffled = shuffleArray(available);
         const picked = shuffled.slice(0, phaseCount);
 
         for (const pose of picked) {
-            if (sequence.length >= availableSlots) break;
             sequence.push({ ...pose, phase: phase.name });
+            usedIds.add(pose.id);
+        }
+    }
+
+    // ── Fallback fill: if phases didn't produce enough poses, pull from anywhere ──
+    if (sequence.length < availableSlots) {
+        const fallbackFilter = {
+            level: filters.level,
+            audience: filters.audience,
+            exclude: [...(filters.exclude || []), ...usedIds, ...mustInclude],
+        };
+        const fallbackPoses = shuffleArray(findPoses(fallbackFilter));
+        for (const pose of fallbackPoses) {
+            if (sequence.length >= availableSlots) break;
+            sequence.push({ ...pose, phase: 'General' });
             usedIds.add(pose.id);
         }
     }
@@ -216,7 +250,7 @@ function buildPhaseSequence(strategy, totalCount, filters) {
         }
     }
 
-    // Trim to exact count
+    // Final trim to exact requested count (safety guard)
     return sequence.slice(0, totalCount);
 }
 
@@ -246,7 +280,19 @@ function buildAnimalSequence(totalCount, filters) {
         usedIds.add(shuffledAnimals[i].id);
     }
 
-    // End with savasana
+    // Fallback: fill remaining middle slots from non-animal poses if not enough animals
+    if (sequence.length < totalCount - 1) {
+        const extraPoses = shuffleArray(nonAnimalPoses).filter(
+            p => !usedIds.has(p.id) && p.category !== 'restorative'
+        );
+        for (const pose of extraPoses) {
+            if (sequence.length >= totalCount - 1) break;
+            sequence.push({ ...pose, phase: 'General' });
+            usedIds.add(pose.id);
+        }
+    }
+
+    // End with savasana (always last)
     const savasana = findPoses({}).find(p => p.id === 'savasana');
     if (savasana && !usedIds.has('savasana')) {
         sequence.push({ ...savasana, phase: 'Rest' });
@@ -256,25 +302,37 @@ function buildAnimalSequence(totalCount, filters) {
 }
 
 function buildRandomSequence(totalCount, filters) {
+    const mustInclude = filters.mustInclude || [];
+
+    // Exclude mustInclude from random pool — they'll be added explicitly at the end
     const available = findPoses({
         level: filters.level,
         audience: filters.audience,
         focusArea: filters.focusArea,
-        exclude: filters.exclude,
+        exclude: [...(filters.exclude || []), ...mustInclude],
     });
 
     const shuffled = shuffleArray(available);
-    const sequence = shuffled.slice(0, totalCount - (filters.mustInclude?.length || 0));
+    // Reserve exact slots for mustInclude poses that actually exist
+    const existingMustInclude = mustInclude.filter(id =>
+        findPoses({ exclude: [] }).some(p => p.id === id)
+    );
+    const sequence = shuffled.slice(0, totalCount - existingMustInclude.length);
 
-    // Add mustInclude
-    for (const poseId of (filters.mustInclude || [])) {
-        const pose = findPoses({}).find(p => p.id === poseId);
-        if (pose && !sequence.find(s => s.id === poseId)) {
-            sequence.push({ ...pose, phase: 'Custom' });
-        }
+    // Add mustInclude at the end (savasana always last)
+    const savasanaIds = existingMustInclude.filter(id => id === 'savasana');
+    const otherMustInclude = existingMustInclude.filter(id => id !== 'savasana');
+
+    for (const poseId of otherMustInclude) {
+        const pose = findPoses({ exclude: [] }).find(p => p.id === poseId);
+        if (pose) sequence.push({ ...pose, phase: 'Custom' });
+    }
+    for (const poseId of savasanaIds) {
+        const pose = findPoses({ exclude: [] }).find(p => p.id === poseId);
+        if (pose) sequence.push({ ...pose, phase: 'Rest' });
     }
 
-    return sequence.slice(0, totalCount).map(p => ({ ...p, phase: 'Random' }));
+    return sequence.slice(0, totalCount).map(p => ({ ...p, phase: p.phase || 'Random' }));
 }
 
 // ============================================================
